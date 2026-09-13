@@ -150,7 +150,7 @@ struct CaseSessionView: View {
         let total = max(diagnosticCase.inspections.filter { $0.productive }.count, 1)
         let wasted = diagnosticCase.inspections.filter { revealed.contains($0.id) && $0.productive == false }.count
         let score = max(0, min(100, (cause ? 45 : 0) + (repair ? 35 : 0) + Int(20 * Double(productive) / Double(total)) - wasted * 2))
-        progress.record(score: score, solved: cause && repair)
+        _ = progress.record(case: diagnosticCase, score: score, solved: cause && repair, tests: revealed.count, wastedTests: wasted)
         result = .init(score: score, solved: cause && repair, correctCause: cause, correctRepair: repair, tests: revealed.count, wastedTests: wasted)
     }
     private var selectedToolName:String { diagnosticCase.tools.first{$0.id==toolID}?.name.uppercased() ?? "SELECT A TOOL" }
