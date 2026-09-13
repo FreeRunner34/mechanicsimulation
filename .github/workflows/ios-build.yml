@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-test:
+  build:
     runs-on: macos-26
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -43,6 +43,17 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+  unit-tests:
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode 26.3
+        run: |
+          sudo xcode-select --switch /Applications/Xcode_26.3.app/Contents/Developer
+          xcodebuild -version
+
       - name: Select an available iPhone simulator
         run: |
           python3 - <<'PY' >> "$GITHUB_ENV"
@@ -59,11 +70,10 @@ jobs:
 
       - name: Boot test simulator
         run: |
-          xcrun simctl shutdown all || true
           xcrun simctl boot "$SIMULATOR_UDID" || true
           xcrun simctl bootstatus "$SIMULATOR_UDID" -b
 
-      - name: Run unit tests
+      - name: Run unit and local StoreKit tests
         run: |
           echo "Testing on $SIMULATOR_NAME ($SIMULATOR_UDID)"
           xcodebuild \
