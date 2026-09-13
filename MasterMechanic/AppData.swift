@@ -71,8 +71,8 @@ final class ProgressStore: ObservableObject {
         history.isEmpty ? lastScore : Int((Double(history.reduce(0) { $0 + $1.score }) / Double(history.count)).rounded())
     }
 
-    var totalComebacks: Int { history.filter(\.replay).count }
-    var totalWastedTests: Int { history.reduce(0) { $0 + $1.wastedTests } }
+    var totalComebacks: Int { history.filter { !$0.replay && !$0.solved }.count }
+    var totalWastedTests: Int { history.filter { !$0.replay }.reduce(0) { $0 + $1.wastedTests } }
 
     var rank: String {
         switch points {
@@ -87,7 +87,7 @@ final class ProgressStore: ObservableObject {
 
     var difficultyStats: [DifficultyStats] {
         Difficulty.allCases.compactMap { difficulty in
-            let rows = history.filter { $0.difficulty == difficulty }
+            let rows = history.filter { $0.difficulty == difficulty && !$0.replay }
             guard !rows.isEmpty else { return nil }
             return DifficultyStats(
                 difficulty: difficulty,
@@ -100,8 +100,9 @@ final class ProgressStore: ObservableObject {
 
     var earnedAchievementIDs: Set<String> {
         var ids = Set<String>()
-        let flawless = history.filter { $0.solved && $0.wastedTests == 0 && $0.score >= 90 }.count
-        let highestAdvancedScore = history.filter { $0.difficulty == .master || $0.difficulty == .diagnostic }.map(\.score).max() ?? 0
+        let careerHistory = history.filter { !$0.replay }
+        let flawless = careerHistory.filter { $0.solved && $0.wastedTests == 0 && $0.score >= 90 }.count
+        let highestAdvancedScore = careerHistory.filter { $0.difficulty == .master || $0.difficulty == .diagnostic }.map(\.score).max() ?? 0
 
         if completedCases >= 1 { ids.insert("first_ro") }
         if flawless >= 1 { ids.insert("flawless") }
@@ -111,8 +112,8 @@ final class ProgressStore: ObservableObject {
         if points >= 7000 { ids.insert("master") }
         if points >= 10000 { ids.insert("century") }
         if highestAdvancedScore >= 95 { ids.insert("big_ticket") }
-        if history.contains(where: { $0.score == 0 }) { ids.insert("goose_egg") }
-        if history.contains(where: { $0.wastedTests >= 5 }) { ids.insert("parts_cannon") }
+        if careerHistory.contains(where: { $0.score == 0 }) { ids.insert("goose_egg") }
+        if careerHistory.contains(where: { $0.wastedTests >= 5 }) { ids.insert("parts_cannon") }
         if totalWastedTests >= 50 { ids.insert("grease_monkey") }
         if completedCases >= 5 && accuracy < 20 { ids.insert("wrong_way") }
 
@@ -132,12 +133,16 @@ final class ProgressStore: ObservableObject {
 
     @discardableResult
     func record(case diagnosticCase: DiagnosticCase, score: Int, solved: Bool, tests: Int, wastedTests: Int, replay: Bool = false) -> Int {
-        let xp = Int((Double(max(0, score)) * diagnosticCase.difficulty.multiplier * 5).rounded())
-        completedCases += 1
-        correctCases += solved ? 1 : 0
-        streak = solved ? streak + 1 : 0
-        lastScore = score
-        points += xp
+        let xp = replay ? 0 : Int((Double(max(0, score)) * diagnosticCase.difficulty.multiplier * 5).rounded())
+
+        if !replay {
+            completedCases += 1
+            correctCases += solved ? 1 : 0
+            streak = solved ? streak + 1 : 0
+            lastScore = score
+            points += xp
+        }
+
         history.insert(
             CaseHistoryEntry(
                 id: UUID(),

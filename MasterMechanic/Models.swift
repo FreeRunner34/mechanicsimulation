@@ -126,11 +126,57 @@ extension AppData {
         return native + ImportedBase44Cases.load().filter { !existingIDs.contains($0.id) }
     }
 
-    func nextCase(difficulty: Difficulty, excluding excludedIDs: Set<String> = []) -> DiagnosticCase? {
-        let pool = playableCases.filter { $0.difficulty == difficulty }
-        guard !pool.isEmpty else { return nil }
+    func nextCase(difficulty: Difficulty, dealerBrand: String? = nil, excluding excludedIDs: Set<String> = []) -> DiagnosticCase? {
+        let levelCases = playableCases.filter { $0.difficulty == difficulty }
+        guard !levelCases.isEmpty else { return nil }
+
+        let pool: [DiagnosticCase]
+        if let dealerBrand {
+            let exact = levelCases.filter { $0.brand == dealerBrand }
+            pool = exact.isEmpty ? levelCases.map { Self.trainingVariant($0, brand: dealerBrand) } : exact
+        } else {
+            pool = levelCases
+        }
+
         let fresh = pool.filter { !excludedIDs.contains($0.id) }
         return (fresh.isEmpty ? pool : fresh).randomElement()
+    }
+
+    private static func trainingVariant(_ base: DiagnosticCase, brand: String) -> DiagnosticCase {
+        let model: String
+        switch brand {
+        case "Nisshin Motors": model = "Nisshin Field-X"
+        case "Stellar Motors Corp": model = "SMC Zenith"
+        case "Bayern Werke": model = "Bayern Werke R4"
+        case "Kestrel Automotive": model = "Kestrel Vector"
+        case "Aeon Mobility": model = "Aeon Meridian"
+        default: model = brand
+        }
+
+        let yearPrefix = String(base.repairOrder.vehicle.prefix(4))
+        let year = yearPrefix.allSatisfy(\.isNumber) ? yearPrefix : "2021"
+        let slug = brand.lowercased().replacingOccurrences(of: " ", with: "-")
+        let order = RepairOrder(
+            vehicle: "\(year) \(model)",
+            mileage: base.repairOrder.mileage,
+            complaint: base.repairOrder.complaint,
+            notes: base.repairOrder.notes + " Dealer Mode training variant."
+        )
+
+        return DiagnosticCase(
+            id: "\(base.id)-dealer-\(slug)",
+            difficulty: base.difficulty,
+            brand: brand,
+            repairOrder: order,
+            tools: base.tools,
+            inspections: base.inspections,
+            causes: base.causes,
+            repairs: base.repairs,
+            explanation: base.explanation,
+            rootCause: base.rootCause,
+            correctRepair: base.correctRepair,
+            takeaways: base.takeaways
+        )
     }
 
     private static func additionalCases(using tools: [DiagnosticTool]) -> [DiagnosticCase] {

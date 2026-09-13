@@ -51,6 +51,34 @@ final class MasterMechanicTests: XCTestCase {
         }
     }
 
+    func testDealerModeAlwaysReturnsSelectedBrand() {
+        for brand in AppData.shared.brands {
+            for difficulty in Difficulty.allCases {
+                let next = AppData.shared.nextCase(difficulty: difficulty, dealerBrand: brand.id)
+                XCTAssertEqual(next?.brand, brand.id, "Dealer Mode failed for \(brand.id) / \(difficulty.rawValue)")
+            }
+        }
+    }
+
+    @MainActor
+    func testReplayDoesNotInflateCareerProgress() {
+        let progress = ProgressStore()
+        progress.reset()
+        guard let diagnosticCase = AppData.shared.playableCases.first else {
+            XCTFail("No playable case")
+            return
+        }
+
+        let xp = progress.record(case: diagnosticCase, score: 100, solved: true, tests: 2, wastedTests: 0, replay: true)
+        XCTAssertEqual(xp, 0)
+        XCTAssertEqual(progress.points, 0)
+        XCTAssertEqual(progress.completedCases, 0)
+        XCTAssertEqual(progress.correctCases, 0)
+        XCTAssertEqual(progress.streak, 0)
+        XCTAssertEqual(progress.history.first?.replay, true)
+        progress.reset()
+    }
+
     func testProductionURLsAreNotPlaceholders() {
         XCTAssertFalse(AppConfig.privacyURL.absoluteString.contains("example.com"))
         XCTAssertFalse(AppConfig.supportURL.absoluteString.contains("example.com"))

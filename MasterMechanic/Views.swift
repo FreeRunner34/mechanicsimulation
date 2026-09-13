@@ -53,6 +53,10 @@ struct DashboardView: View {
                     ProgressView(value:min(Double(progress.points % 1500)/1500,1)).tint(accent)
                     Text("Cases score the diagnosis, repair choice, and how efficiently you gather evidence.").font(.footnote).foregroundStyle(.secondary)
                 }.card()
+                HStack(spacing:10) {
+                    NavigationLink { LibraryView() } label: { QuickLinkCard(title:"RO Library", subtitle:"Replay & review", symbol:"books.vertical.fill") }
+                    NavigationLink { StatsAchievementsView() } label: { QuickLinkCard(title:"Career Stats", subtitle:"History & badges", symbol:"chart.bar.fill") }
+                }.buttonStyle(.plain)
                 if !purchases.isPro {
                     NavigationLink { ProView() } label: {
                         HStack { Image(systemName:"crown.fill").foregroundStyle(accent); VStack(alignment:.leading) { Text("MasterMechanic Pro").font(.headline).foregroundStyle(.white); Text("Unlock advanced diagnostic levels").font(.caption).foregroundStyle(.secondary) }; Spacer(); Image(systemName:"chevron.right") }
@@ -70,6 +74,7 @@ struct SimulatorView: View {
     @State private var selectedCase: DiagnosticCase?
     @State private var pendingNextDifficulty: Difficulty?
     @State private var lastLaunchedCaseID: String?
+    @State private var selectedDealerBrand: String?
     private let data = AppData.shared
 
     var body: some View {
@@ -77,8 +82,25 @@ struct SimulatorView: View {
             VStack(alignment:.leading,spacing:12) {
                 Text("Pick a difficulty").font(.title.bold())
                 Text("Entry Level and Apprentice are free. Pro unlocks the full diagnostic ladder.").foregroundStyle(.secondary).padding(.bottom,4)
+
+                VStack(alignment:.leading,spacing:10) {
+                    SectionHeader("DEALER MODE", selectedDealerBrand == nil ? "MIXED BRAND" : "LOCKED TO BRAND")
+                    ScrollView(.horizontal,showsIndicators:false) {
+                        HStack(spacing:8) {
+                            Button { selectedDealerBrand = nil } label: { DealerChip(title:"Mixed", selected:selectedDealerBrand == nil) }.buttonStyle(.plain)
+                            ForEach(data.brands) { brand in
+                                Button { selectedDealerBrand = brand.id } label: { DealerChip(title:brand.shortName, selected:selectedDealerBrand == brand.id) }.buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    Text(selectedDealerBrand == nil ? "Rotate through every fictional manufacturer." : "Repair orders stay with this manufacturer; a training variant is created if a tier has no exact-brand case.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }.card()
+
                 ForEach(Difficulty.allCases) { level in
-                    let available = data.playableCases.filter { $0.difficulty == level }
+                    let levelCases = data.playableCases.filter { $0.difficulty == level }
+                    let exactBrandCases = selectedDealerBrand.map { brand in levelCases.filter { $0.brand == brand } } ?? levelCases
+                    let displayedCount = exactBrandCases.isEmpty ? levelCases.count : exactBrandCases.count
                     let locked = level.isPro && !purchases.isPro
                     Button {
                         if !locked { beginCase(level) }
@@ -88,13 +110,13 @@ struct SimulatorView: View {
                             VStack(alignment:.leading,spacing:4) {
                                 Text(level.rawValue).font(.headline).foregroundStyle(.white)
                                 Text(description(level)).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
-                                if !available.isEmpty {
-                                    Text("\(available.count) repair orders in rotation").font(.caption2).foregroundStyle(accent.opacity(0.8))
+                                if !levelCases.isEmpty {
+                                    Text("\(displayedCount) repair orders in rotation").font(.caption2).foregroundStyle(accent.opacity(0.8))
                                 }
                             }
                             Spacer(); Text(locked ? "PRO":"OPEN").font(.caption2.bold()).foregroundStyle(locked ? accent:Color.secondary)
                         }.padding(15).background(panel).clipShape(RoundedRectangle(cornerRadius:18))
-                    }.buttonStyle(.plain).disabled(available.isEmpty)
+                    }.buttonStyle(.plain).disabled(levelCases.isEmpty)
                 }
                 if !purchases.isPro { NavigationLink("Unlock advanced levels") { ProView() }.buttonStyle(PrimaryButtonStyle()).padding(.top,6) }
             }.padding()
@@ -132,7 +154,7 @@ struct SimulatorView: View {
             .map(\.caseID)
         excluded.formUnion(recentIDs)
 
-        let next = data.nextCase(difficulty: level, excluding: excluded) ?? pool.randomElement()
+        let next = data.nextCase(difficulty: level, dealerBrand: selectedDealerBrand, excluding: excluded) ?? pool.randomElement()
         selectedCase = next
         lastLaunchedCaseID = next?.id
     }
@@ -144,6 +166,7 @@ struct CaseSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var progress: ProgressStore
     let diagnosticCase: DiagnosticCase
+    var isReplay: Bool = false
     let onNext: () -> Void
     @State private var bay: BayView = .underHood
     @State private var toolID:String?
@@ -197,21 +220,22 @@ struct CaseSessionView: View {
         let total = max(diagnosticCase.inspections.filter { $0.productive }.count, 1)
         let wasted = diagnosticCase.inspections.filter { revealed.contains($0.id) && $0.productive == false }.count
         let score = max(0, min(100, (cause ? 45 : 0) + (repair ? 35 : 0) + Int(20 * Double(productive) / Double(total)) - wasted * 2))
-        _ = progress.record(
+        let xp = progress.record(
             case: diagnosticCase,
             score: score,
             solved: cause && repair,
             tests: revealed.count,
-            wastedTests: wasted
+            wastedTests: wasted,
+            replay: isReplay
         )
-        result = .init(score: score, solved: cause && repair, correctCause: cause, correctRepair: repair, tests: revealed.count, wastedTests: wasted)
+        result = .init(score: score, solved: cause && repair, correctCause: cause, correctRepair: repair, tests: revealed.count, wastedTests: wasted, xp: xp)
     }
     private var selectedToolName:String { diagnosticCase.tools.first{$0.id==toolID}?.name.uppercased() ?? "SELECT A TOOL" }
     private func toolName(_ id:String)->String{diagnosticCase.tools.first{$0.id==id}?.name ?? id}
     private func short(_ v:BayView)->String{switch v{case .underHood:"HOOD";case .underCar:"LIFT";case .cockpit:"CAB";case .exterior:"ROAD"}}
 }
 
-struct CaseResult:Identifiable{let id=UUID();let score:Int;let solved:Bool;let correctCause:Bool;let correctRepair:Bool;let tests:Int;let wastedTests:Int}
+struct CaseResult:Identifiable{let id=UUID();let score:Int;let solved:Bool;let correctCause:Bool;let correctRepair:Bool;let tests:Int;let wastedTests:Int;let xp:Int}
 struct ResultView: View {
     let result:CaseResult
     let diagnosticCase:DiagnosticCase
@@ -220,6 +244,7 @@ struct ResultView: View {
     var body: some View { ZStack { Color.black.ignoresSafeArea(); ScrollView { VStack(spacing:18) {
         ZStack { Circle().stroke(outline,lineWidth:12); Circle().trim(from:0,to:Double(result.score)/100).stroke(accent,style:StrokeStyle(lineWidth:12,lineCap:.round)).rotationEffect(.degrees(-90)); Text("\(result.score)").font(.system(size:52,weight:.black,design:.rounded)) }.frame(width:170,height:170).padding(.top,22)
         Text(result.solved ? "COMEBACK AVOIDED":"CUSTOMER CAME BACK").font(.title2.weight(.black)).foregroundStyle(result.solved ? accent:.red)
+        Text(result.xp > 0 ? "+\(result.xp) XP" : "Replay — no career XP").font(.headline).foregroundStyle(result.xp > 0 ? accent : Color.secondary)
         VStack(alignment:.leading,spacing:12){ResultLine(label:"Root cause",value:diagnosticCase.rootCause,pass:result.correctCause);ResultLine(label:"Repair",value:diagnosticCase.correctRepair,pass:result.correctRepair);ResultLine(label:"Tests",value:"\(result.tests) (\(result.wastedTests) non-productive)",pass:nil)}.card()
         VStack(alignment:.leading,spacing:9){SectionHeader("WHY","DIAGNOSTIC LOGIC");Text(diagnosticCase.explanation).foregroundStyle(.white.opacity(0.8));ForEach(diagnosticCase.takeaways,id:\.self){Label($0,systemImage:"checkmark.circle.fill").font(.subheadline).foregroundStyle(.secondary)}}.card()
         Button("Next repair order",action:next).buttonStyle(PrimaryButtonStyle())
@@ -244,6 +269,7 @@ struct QuizView: View {
     @State private var selected: String?
     @State private var correct = 0
     @State private var finished = false
+    @State private var answered = false
 
     var body: some View {
         ZStack {
@@ -268,12 +294,32 @@ struct QuizView: View {
                         }
                         Text(question.question).font(.title3.bold()).padding(.vertical, 5)
                         ForEach(question.choices) { choice in
-                            ChoiceRow(text: "\(choice.id). \(choice.text)", selected: selected == choice.id) { selected = choice.id }
+                            ChoiceRow(text: "\(choice.id). \(choice.text)", selected: selected == choice.id) {
+                                if !answered { selected = choice.id }
+                            }
+                            .allowsHitTesting(!answered)
                         }
-                        Button(index == seed.questions.count - 1 ? "Finish" : "Next question") {
-                            if selected?.lowercased() == question.correctID.lowercased() { correct += 1 }
-                            selected = nil
-                            if index == seed.questions.count - 1 { finished = true } else { index += 1 }
+
+                        if answered {
+                            let passed = selected?.lowercased() == question.correctID.lowercased()
+                            let correctText = question.choices.first { $0.id.lowercased() == question.correctID.lowercased() }?.text ?? question.correctID
+                            VStack(alignment:.leading,spacing:8) {
+                                Label(passed ? "Correct" : "Not quite", systemImage: passed ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                    .font(.headline).foregroundStyle(passed ? accent : Color.red)
+                                if !passed { Text("Correct answer: \(question.correctID). \(correctText)").font(.subheadline.bold()) }
+                                Text(question.explanation).font(.subheadline).foregroundStyle(.white.opacity(0.78))
+                            }.card()
+                        }
+
+                        Button(answered ? (index == seed.questions.count - 1 ? "Finish" : "Next question") : "Check answer") {
+                            if !answered {
+                                if selected?.lowercased() == question.correctID.lowercased() { correct += 1 }
+                                answered = true
+                            } else {
+                                selected = nil
+                                answered = false
+                                if index == seed.questions.count - 1 { finished = true } else { index += 1 }
+                            }
                         }
                         .buttonStyle(PrimaryButtonStyle())
                         .disabled(selected == nil)
@@ -288,11 +334,163 @@ struct QuizView: View {
     }
 }
 
+
+struct LibraryView: View {
+    @EnvironmentObject var progress: ProgressStore
+    @State private var difficultyFilter: Difficulty?
+    @State private var query = ""
+    @State private var selectedCase: DiagnosticCase?
+    @State private var pendingNextDifficulty: Difficulty?
+    private let data = AppData.shared
+
+    private var filteredCases: [DiagnosticCase] {
+        data.playableCases.filter { item in
+            let difficultyMatches = difficultyFilter == nil || item.difficulty == difficultyFilter
+            let search = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let searchMatches = search.isEmpty || item.repairOrder.vehicle.localizedCaseInsensitiveContains(search) || item.repairOrder.complaint.localizedCaseInsensitiveContains(search) || (item.brand?.localizedCaseInsensitiveContains(search) ?? false)
+            return difficultyMatches && searchMatches
+        }
+        .sorted { lhs, rhs in
+            let li = Difficulty.allCases.firstIndex { $0.rawValue == lhs.difficulty.rawValue } ?? 0
+            let ri = Difficulty.allCases.firstIndex { $0.rawValue == rhs.difficulty.rawValue } ?? 0
+            return li == ri ? lhs.repairOrder.vehicle < rhs.repairOrder.vehicle : li < ri
+        }
+    }
+
+    var body: some View {
+        ScrollView {
+            LazyVStack(alignment:.leading,spacing:11) {
+                Text("Repair Order Library").font(.title.bold())
+                Text("Review the native case catalog and replay any RO. Replays record a best score but do not award career XP.").font(.subheadline).foregroundStyle(.secondary)
+                ScrollView(.horizontal,showsIndicators:false) {
+                    HStack(spacing:8) {
+                        Button { difficultyFilter = nil } label: { FilterChip(title:"All", selected:difficultyFilter == nil) }.buttonStyle(.plain)
+                        ForEach(Difficulty.allCases) { difficulty in
+                            Button { difficultyFilter = difficulty } label: { FilterChip(title:difficulty.shortLabel, selected:difficultyFilter?.rawValue == difficulty.rawValue) }.buttonStyle(.plain)
+                        }
+                    }
+                }
+                Text("\(filteredCases.count) repair orders").font(.caption.bold()).foregroundStyle(accent).padding(.top,4)
+                ForEach(filteredCases) { item in
+                    Button { selectedCase = item } label: {
+                        VStack(alignment:.leading,spacing:7) {
+                            HStack {
+                                Text(item.repairOrder.vehicle).font(.headline).foregroundStyle(.white)
+                                Spacer()
+                                Text(item.difficulty.shortLabel).font(.caption2.bold()).foregroundStyle(accent)
+                            }
+                            Text(item.repairOrder.complaint).font(.subheadline).foregroundStyle(.secondary).lineLimit(2)
+                            HStack(spacing:12) {
+                                if let brand = item.brand { Label(brand,systemImage:"building.2.fill") }
+                                let attempts = progress.attempts(for:item.id)
+                                Label(attempts == 0 ? "New" : "\(attempts) attempts",systemImage:"arrow.counterclockwise")
+                                if let best = progress.bestScore(for:item.id) { Label("Best \(best)",systemImage:"star.fill") }
+                            }.font(.caption2).foregroundStyle(.secondary)
+                        }.padding(14).background(panel).clipShape(RoundedRectangle(cornerRadius:16))
+                    }.buttonStyle(.plain)
+                }
+            }.padding()
+        }
+        .background(Color.black.ignoresSafeArea())
+        .navigationTitle("Library")
+        .navigationBarTitleDisplayMode(.inline)
+        .searchable(text:$query,prompt:"Vehicle, brand, or complaint")
+        .fullScreenCover(item:$selectedCase,onDismiss:{
+            guard let difficulty = pendingNextDifficulty else { return }
+            pendingNextDifficulty = nil
+            DispatchQueue.main.asyncAfter(deadline:.now()+0.15) {
+                selectedCase = data.nextCase(difficulty:difficulty,excluding:Set(progress.history.prefix(4).map(\.caseID)))
+            }
+        }) { value in
+            NavigationStack {
+                CaseSessionView(diagnosticCase:value,isReplay:true,onNext:{
+                    pendingNextDifficulty = value.difficulty
+                    selectedCase = nil
+                })
+            }
+        }
+    }
+}
+
+struct StatsAchievementsView: View {
+    @EnvironmentObject var progress: ProgressStore
+    private let data = AppData.shared
+    private let columns = [GridItem(.flexible()),GridItem(.flexible())]
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment:.leading,spacing:14) {
+                Text("Career Overview").font(.title.bold())
+                HStack(spacing:8) {
+                    StatTile(value:"\(progress.points)",label:"XP",symbol:"bolt.fill")
+                    StatTile(value:"\(progress.completedCases)",label:"Closed ROs",symbol:"clipboard.fill")
+                    StatTile(value:"\(progress.accuracy)%",label:"Accuracy",symbol:"scope")
+                }
+                HStack(spacing:8) {
+                    StatTile(value:"\(progress.averageScore)",label:"Avg Score",symbol:"gauge.with.dots.needle.50percent")
+                    StatTile(value:"\(progress.streak)",label:"Streak",symbol:"flame.fill")
+                    StatTile(value:"\(progress.totalComebacks)",label:"Comebacks",symbol:"arrow.uturn.backward.circle.fill")
+                }
+
+                SectionHeader("BY DIFFICULTY","CAREER JOBS")
+                if progress.difficultyStats.isEmpty {
+                    Text("Close a repair order to start building your career stats.").foregroundStyle(.secondary).card()
+                } else {
+                    ForEach(progress.difficultyStats) { stats in
+                        HStack {
+                            VStack(alignment:.leading,spacing:3) {
+                                Text(stats.difficulty.rawValue).font(.headline)
+                                Text("\(stats.cases) jobs · \(stats.xp) XP").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text("\(stats.averageScore)").font(.title3.bold().monospacedDigit()).foregroundStyle(accent)
+                        }.padding(14).background(panel).clipShape(RoundedRectangle(cornerRadius:16))
+                    }
+                }
+
+                SectionHeader("ACHIEVEMENTS","\(progress.earnedAchievementIDs.count) / \(data.achievements.count)")
+                LazyVGrid(columns:columns,spacing:10) {
+                    ForEach(data.achievements) { achievement in
+                        let earned = progress.earnedAchievementIDs.contains(achievement.id)
+                        VStack(alignment:.leading,spacing:7) {
+                            Image(systemName:achievement.symbol).font(.title2).foregroundStyle(earned ? (achievement.negative ? Color.red : accent) : Color.secondary)
+                            Text(achievement.name).font(.headline).foregroundStyle(earned ? .white : .secondary)
+                            Text(achievement.detail).font(.caption).foregroundStyle(.secondary)
+                            Spacer(minLength:0)
+                            Text(earned ? "EARNED" : "LOCKED").font(.caption2.weight(.black)).foregroundStyle(earned ? (achievement.negative ? Color.red : accent) : Color.secondary)
+                        }.frame(maxWidth:.infinity,minHeight:145,alignment:.topLeading).padding(13).background(panel).clipShape(RoundedRectangle(cornerRadius:16))
+                    }
+                }
+
+                SectionHeader("RECENT REPAIR ORDERS","LAST 10")
+                if progress.history.isEmpty {
+                    Text("No repair-order history yet.").foregroundStyle(.secondary).card()
+                } else {
+                    ForEach(Array(progress.history.prefix(10))) { entry in
+                        HStack(spacing:12) {
+                            Circle().fill(entry.solved ? accent.opacity(0.18) : Color.red.opacity(0.16)).frame(width:42,height:42).overlay(Image(systemName:entry.solved ? "checkmark.wrench.fill":"arrow.uturn.backward").foregroundStyle(entry.solved ? accent : Color.red))
+                            VStack(alignment:.leading,spacing:3) {
+                                Text(entry.vehicle).font(.subheadline.bold())
+                                Text("\(entry.difficulty.shortLabel) · \(entry.date.formatted(date:.abbreviated,time:.omitted))\(entry.replay ? " · REPLAY" : "")").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            VStack(alignment:.trailing,spacing:2) {
+                                Text("\(entry.score)").font(.headline.monospacedDigit())
+                                Text(entry.xp > 0 ? "+\(entry.xp) XP" : "No XP").font(.caption2).foregroundStyle(entry.xp > 0 ? accent : Color.secondary)
+                            }
+                        }.padding(12).background(panel).clipShape(RoundedRectangle(cornerRadius:15))
+                    }
+                }
+            }.padding()
+        }.background(Color.black.ignoresSafeArea()).navigationTitle("Stats & Achievements").navigationBarTitleDisplayMode(.inline)
+    }
+}
+
 struct ToolboxView:View{var body:some View{List(AppData.shared.toolReferences){tool in VStack(alignment:.leading,spacing:7){Label(tool.name,systemImage:tool.symbol).font(.headline).foregroundStyle(.white);Text(tool.use).font(.subheadline).foregroundStyle(.secondary);Text("SHOP TIP  ·  \(tool.tip)").font(.caption).foregroundStyle(accent)}.padding(.vertical,7).listRowBackground(Color.white.opacity(0.05))}.scrollContentBackground(.hidden).background(Color.black).navigationTitle("Toolbox")}}
 
 struct ProfileView:View{
     @EnvironmentObject var progress:ProgressStore; @EnvironmentObject var purchases:PurchaseManager; @State private var confirmReset=false
-    var body:some View{List{Section{VStack(alignment:.leading,spacing:6){Text(progress.rank).font(.title2.bold());Text("\(progress.points) XP · \(progress.completedCases) cases · \(progress.accuracy)% accuracy").foregroundStyle(.secondary)}};Section("ACCESS"){if purchases.isPro{Label("MasterMechanic Pro active",systemImage:"crown.fill").foregroundStyle(accent)}else{NavigationLink("Unlock Pro levels"){ProView()}};Button("Restore purchases"){Task{await purchases.restore()}}};Section("PRIVACY & SUPPORT"){NavigationLink("Privacy"){PrivacyView()};Link("Support",destination:AppConfig.supportURL);Link("Manage Apple subscription",destination:URL(string:"https://apps.apple.com/account/subscriptions")!);Text("No MasterMechanic account is required. Progress is stored on this device.").font(.footnote).foregroundStyle(.secondary)};Section("DATA"){Button("Reset local progress",role:.destructive){confirmReset=true}};Section{Text("Independent educational simulator. Always use vehicle-specific service information and safety procedures for real repairs.").font(.footnote).foregroundStyle(.secondary)}}.scrollContentBackground(.hidden).background(Color.black).navigationTitle("Profile").confirmationDialog("Reset all local progress?",isPresented:$confirmReset,titleVisibility:.visible){Button("Reset progress",role:.destructive){progress.reset()}}.alert("Store",isPresented:Binding(get:{purchases.message != nil},set:{if !$0{purchases.message=nil}})){Button("OK"){purchases.message=nil}}message:{Text(purchases.message ?? "")}}
+    var body:some View{List{Section{VStack(alignment:.leading,spacing:6){Text(progress.rank).font(.title2.bold());Text("\(progress.points) XP · \(progress.completedCases) cases · \(progress.accuracy)% accuracy").foregroundStyle(.secondary)}};Section("CAREER"){NavigationLink("Repair Order Library"){LibraryView()};NavigationLink("Stats & Achievements"){StatsAchievementsView()}};Section("ACCESS"){if purchases.isPro{Label("MasterMechanic Pro active",systemImage:"crown.fill").foregroundStyle(accent)}else{NavigationLink("Unlock Pro levels"){ProView()}};Button("Restore purchases"){Task{await purchases.restore()}}};Section("PRIVACY & SUPPORT"){NavigationLink("Privacy"){PrivacyView()};Link("Support",destination:AppConfig.supportURL);Link("Manage Apple subscription",destination:URL(string:"https://apps.apple.com/account/subscriptions")!);Text("No MasterMechanic account is required. Progress is stored on this device.").font(.footnote).foregroundStyle(.secondary)};Section("DATA"){Button("Reset local progress",role:.destructive){confirmReset=true}};Section{Text("Independent educational simulator. Always use vehicle-specific service information and safety procedures for real repairs.").font(.footnote).foregroundStyle(.secondary)}}.scrollContentBackground(.hidden).background(Color.black).navigationTitle("Profile").confirmationDialog("Reset all local progress?",isPresented:$confirmReset,titleVisibility:.visible){Button("Reset progress",role:.destructive){progress.reset()}}.alert("Store",isPresented:Binding(get:{purchases.message != nil},set:{if !$0{purchases.message=nil}})){Button("OK"){purchases.message=nil}}message:{Text(purchases.message ?? "")}}
 }
 
 struct ProView:View{
@@ -302,6 +500,9 @@ struct ProView:View{
 
 struct PrivacyView:View{var body:some View{ScrollView{VStack(alignment:.leading,spacing:15){Text("Privacy").font(.largeTitle.bold());Text("MasterMechanic does not require an app account. Simulator progress and settings are stored locally on the device. StoreKit supplies purchase entitlement status so the app can determine whether Pro is active.");Text("This native build does not use Base44, Stripe, third-party advertising SDKs, analytics SDKs, or cross-app tracking.");Text("MasterMechanic does not sell personal information. Local simulator progress can be removed from Profile by resetting local progress or by deleting the app.");Link("Open published privacy policy",destination:AppConfig.privacyURL).foregroundStyle(accent)}.foregroundStyle(.white.opacity(0.85)).padding()}.background(Color.black.ignoresSafeArea())}}
 
+struct QuickLinkCard:View{let title:String;let subtitle:String;let symbol:String;var body:some View{VStack(alignment:.leading,spacing:7){Image(systemName:symbol).font(.title2).foregroundStyle(accent);Text(title).font(.headline).foregroundStyle(.white);Text(subtitle).font(.caption).foregroundStyle(.secondary)}.frame(maxWidth:.infinity,alignment:.leading).padding(14).background(panel).clipShape(RoundedRectangle(cornerRadius:16))}}
+struct DealerChip:View{let title:String;let selected:Bool;var body:some View{Text(title).font(.caption.bold()).padding(.horizontal,13).padding(.vertical,9).foregroundStyle(selected ? .black:.white).background(selected ? accent:panel).clipShape(Capsule()).overlay(Capsule().stroke(selected ? Color.clear:outline))}}
+struct FilterChip:View{let title:String;let selected:Bool;var body:some View{Text(title).font(.caption2.bold()).padding(.horizontal,12).padding(.vertical,8).foregroundStyle(selected ? .black:.white).background(selected ? accent:panel).clipShape(Capsule())}}
 struct StatTile:View{let value:String;let label:String;let symbol:String;var body:some View{VStack(spacing:5){Image(systemName:symbol).foregroundStyle(accent);Text(value).font(.headline.monospacedDigit());Text(label).font(.caption2).foregroundStyle(.secondary)}.frame(maxWidth:.infinity).padding(.vertical,13).background(panel).clipShape(RoundedRectangle(cornerRadius:15))}}
 struct SectionHeader:View{let title:String;let subtitle:String;init(_ title:String,_ subtitle:String){self.title=title;self.subtitle=subtitle};var body:some View{HStack{Text(title).font(.caption.weight(.black)).tracking(1.7);Spacer();Text(subtitle).font(.caption2.bold()).foregroundStyle(.secondary)}}}
 struct ChoiceRow:View{let text:String;let selected:Bool;let action:()->Void;var body:some View{Button(action:action){HStack(spacing:11){Image(systemName:selected ? "largecircle.fill.circle":"circle").foregroundStyle(selected ? accent:Color.secondary);Text(text).foregroundStyle(.white).multilineTextAlignment(.leading);Spacer()}.padding(13).background(selected ? accent.opacity(0.09):panel).overlay(RoundedRectangle(cornerRadius:14).stroke(selected ? accent.opacity(0.65):outline)).clipShape(RoundedRectangle(cornerRadius:14))}.buttonStyle(.plain)}}
