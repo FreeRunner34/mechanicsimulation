@@ -30,19 +30,23 @@ assert "example.com" not in models, "Placeholder production URL remains in Model
 assert "ImportedCaseHook.swift" not in (root / "MasterMechanic.xcodeproj" / "project.pbxproj").read_text()
 assert not (root / "MasterMechanic" / "ImportedCaseHook.swift").exists(), "Legacy global array operator hook still exists"
 assert '$6.99 / month' not in views, "Hard-coded storefront price remains in the UI"
-assert "trainingQuestions" in views, "Training view is not using the expanded question bank"
+assert "practiceTest(area:area.0, questionCount:20)" in views, "Training view is not using randomized practice tests"
 
 config = json.loads(storekit_path.read_text())
-products = []
+products = list(config.get("products", []))
 for group in config.get("subscriptionGroups", []):
     products.extend(group.get("subscriptions", []))
 product_ids = {item.get("productID") for item in products}
-assert "com.freerunner34.mastermechanic.pro.monthly" in product_ids, "Local StoreKit product ID does not match app code"
+expected_product = "com.freerunner34.mastermechanic.pro.monthly"
+assert expected_product in product_ids, "Local StoreKit product ID does not match app code"
+unlock = next(item for item in products if item.get("productID") == expected_product)
+assert unlock.get("type") == "NonConsumable", "Pro must be configured as a non-consumable one-time purchase"
 
 base_questions = len(re.findall(r'\n\s*q\("a[1-8]"', (root / "MasterMechanic" / "AppData.swift").read_text()))
-extra_questions = len(re.findall(r'\n\s*q\("a[1-8]x[1-4]"', extra))
+scenario_count = extra.count('s("')
 assert base_questions >= 8, f"Expected at least eight built-in ASE questions, found {base_questions}"
-assert extra_questions == 32, f"Expected 32 extra ASE questions, found {extra_questions}"
+assert scenario_count >= 160, f"Expected at least 160 ASE concept scenarios, found {scenario_count}"
+assert 'for variant in 0..<3' in extra, "ASE bank no longer generates three variants per concept"
 
 assert (root / "PRIVACY.md").exists()
 assert (root / "SUPPORT.md").exists()
@@ -51,11 +55,8 @@ assert (root / "MasterMechanic.xcodeproj" / "xcshareddata" / "xcschemes" / "Mast
 
 icon_contents = json.loads((root / "MasterMechanic" / "Assets.xcassets" / "AppIcon.appiconset" / "Contents.json").read_text())
 has_icon_filename = any(item.get("filename") for item in icon_contents.get("images", []))
+assert has_icon_filename, "Final 1024x1024 App Store icon is not assigned"
 
 print(f"Validated {len(rows)} migrated repair orders")
-print(f"Validated {base_questions + extra_questions}+ ASE-style questions")
-print("Validated StoreKit product ID, production URLs, and explicit case catalog wiring")
-if has_icon_filename:
-    print("App icon asset is assigned")
-else:
-    print("WARNING: final 1024x1024 App Store icon is still not assigned")
+print(f"Validated {base_questions + scenario_count * 3}+ ASE-style question variants")
+print("Validated one-time StoreKit Pro unlock, production URLs, randomized practice tests, and app icon")
