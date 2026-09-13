@@ -3,41 +3,25 @@
   "nonRenewingSubscriptions" : [
   ],
   "products" : [
+    {
+      "displayPrice" : "14.99",
+      "familyShareable" : false,
+      "internalID" : "MMPROUNLOCK001",
+      "localizations" : [
+        {
+          "description" : "Permanently unlock Technician through Diagnostic Specialist levels and Pro diagnostic content.",
+          "displayName" : "MasterMechanic Pro Unlock",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.freerunner34.mastermechanic.pro.monthly",
+      "referenceName" : "MasterMechanic Pro Unlock",
+      "type" : "NonConsumable"
+    }
   ],
   "settings" : {
   },
   "subscriptionGroups" : [
-    {
-      "id" : "MMGROUP1",
-      "localizations" : [
-      ],
-      "name" : "MasterMechanic Pro",
-      "subscriptions" : [
-        {
-          "adHocOffers" : [
-          ],
-          "codeOffers" : [
-          ],
-          "displayPrice" : "6.99",
-          "familyShareable" : false,
-          "groupNumber" : 1,
-          "internalID" : "MMPRO001",
-          "introductoryOffer" : null,
-          "localizations" : [
-            {
-              "description" : "Unlock the advanced diagnostic ladder and Pro repair-order catalog.",
-              "displayName" : "MasterMechanic Pro Monthly",
-              "locale" : "en_US"
-            }
-          ],
-          "productID" : "com.freerunner34.mastermechanic.pro.monthly",
-          "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "MasterMechanic Pro Monthly",
-          "subscriptionGroupID" : "MMGROUP1",
-          "type" : "RecurringSubscription"
-        }
-      ]
-    }
   ],
   "version" : {
     "major" : 2,
