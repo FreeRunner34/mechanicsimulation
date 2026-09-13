@@ -1,6 +1,42 @@
 import Foundation
 import Combine
 
+struct CaseHistoryEntry: Identifiable, Codable, Hashable {
+    let id: UUID
+    let caseID: String
+    let vehicle: String
+    let difficulty: Difficulty
+    let brand: String?
+    let score: Int
+    let xp: Int
+    let solved: Bool
+    let tests: Int
+    let wastedTests: Int
+    let replay: Bool
+    let date: Date
+}
+
+struct DifficultyStats: Identifiable {
+    let difficulty: Difficulty
+    let cases: Int
+    let averageScore: Int
+    let xp: Int
+    var id: String { difficulty.id }
+}
+
+struct FictionalBrand: Identifiable, Hashable {
+    let id: String
+    let shortName: String
+}
+
+struct AchievementDefinition: Identifiable, Hashable {
+    let id: String
+    let name: String
+    let detail: String
+    let symbol: String
+    let negative: Bool
+}
+
 @MainActor
 final class ProgressStore: ObservableObject {
     @Published private(set) var points: Int
@@ -8,7 +44,11 @@ final class ProgressStore: ObservableObject {
     @Published private(set) var correctCases: Int
     @Published private(set) var streak: Int
     @Published private(set) var lastScore: Int
+    @Published private(set) var history: [CaseHistoryEntry]
+
     private let defaults = UserDefaults.standard
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
 
     init() {
         points = defaults.integer(forKey: "progress.points")
@@ -16,9 +56,24 @@ final class ProgressStore: ObservableObject {
         correctCases = defaults.integer(forKey: "progress.correct")
         streak = defaults.integer(forKey: "progress.streak")
         lastScore = defaults.integer(forKey: "progress.lastScore")
+        if let data = defaults.data(forKey: "progress.history"), let decoded = try? decoder.decode([CaseHistoryEntry].self, from: data) {
+            history = decoded
+        } else {
+            history = []
+        }
     }
 
-    var accuracy: Int { completedCases == 0 ? 0 : Int((Double(correctCases) / Double(completedCases) * 100).rounded()) }
+    var accuracy: Int {
+        completedCases == 0 ? 0 : Int((Double(correctCases) / Double(completedCases) * 100).rounded())
+    }
+
+    var averageScore: Int {
+        history.isEmpty ? lastScore : Int((Double(history.reduce(0) { $0 + $1.score }) / Double(history.count)).rounded())
+    }
+
+    var totalComebacks: Int { history.filter(\.replay).count }
+    var totalWastedTests: Int { history.reduce(0) { $0 + $1.wastedTests } }
+
     var rank: String {
         switch points {
         case 0..<500: "Lube Tech"
@@ -30,20 +85,154 @@ final class ProgressStore: ObservableObject {
         }
     }
 
-    func record(score: Int, solved: Bool) {
-        completedCases += 1; correctCases += solved ? 1 : 0; streak = solved ? streak + 1 : 0
-        lastScore = score; points += max(0, score); persist()
+    var difficultyStats: [DifficultyStats] {
+        Difficulty.allCases.compactMap { difficulty in
+            let rows = history.filter { $0.difficulty == difficulty }
+            guard !rows.isEmpty else { return nil }
+            return DifficultyStats(
+                difficulty: difficulty,
+                cases: rows.count,
+                averageScore: Int((Double(rows.reduce(0) { $0 + $1.score }) / Double(rows.count)).rounded()),
+                xp: rows.reduce(0) { $0 + $1.xp }
+            )
+        }
     }
-    func reset() { points = 0; completedCases = 0; correctCases = 0; streak = 0; lastScore = 0; persist() }
+
+    var earnedAchievementIDs: Set<String> {
+        var ids = Set<String>()
+        let flawless = history.filter { $0.solved && $0.wastedTests == 0 && $0.score >= 90 }.count
+        let highestAdvancedScore = history.filter { $0.difficulty == .master || $0.difficulty == .diagnostic }.map(\.score).max() ?? 0
+
+        if completedCases >= 1 { ids.insert("first_ro") }
+        if flawless >= 1 { ids.insert("flawless") }
+        if flawless >= 5 { ids.insert("flawless5") }
+        if streak >= 5 { ids.insert("streak5") }
+        if streak >= 8 { ids.insert("streak8") }
+        if points >= 7000 { ids.insert("master") }
+        if points >= 10000 { ids.insert("century") }
+        if highestAdvancedScore >= 95 { ids.insert("big_ticket") }
+        if history.contains(where: { $0.score == 0 }) { ids.insert("goose_egg") }
+        if history.contains(where: { $0.wastedTests >= 5 }) { ids.insert("parts_cannon") }
+        if totalWastedTests >= 50 { ids.insert("grease_monkey") }
+        if completedCases >= 5 && accuracy < 20 { ids.insert("wrong_way") }
+
+        let comebackIDs: [Difficulty: String] = [
+            .entry: "comeback_entry",
+            .apprentice: "comeback_apprentice",
+            .technician: "comeback_technician",
+            .senior: "comeback_senior",
+            .master: "comeback_master",
+            .diagnostic: "comeback_specialist"
+        ]
+        for stats in difficultyStats where stats.cases >= 2 && stats.averageScore < 20 {
+            if let id = comebackIDs[stats.difficulty] { ids.insert(id) }
+        }
+        return ids
+    }
+
+    @discardableResult
+    func record(case diagnosticCase: DiagnosticCase, score: Int, solved: Bool, tests: Int, wastedTests: Int, replay: Bool = false) -> Int {
+        let xp = Int((Double(max(0, score)) * diagnosticCase.difficulty.multiplier * 5).rounded())
+        completedCases += 1
+        correctCases += solved ? 1 : 0
+        streak = solved ? streak + 1 : 0
+        lastScore = score
+        points += xp
+        history.insert(
+            CaseHistoryEntry(
+                id: UUID(),
+                caseID: diagnosticCase.id,
+                vehicle: diagnosticCase.repairOrder.vehicle,
+                difficulty: diagnosticCase.difficulty,
+                brand: diagnosticCase.brand,
+                score: score,
+                xp: xp,
+                solved: solved,
+                tests: tests,
+                wastedTests: wastedTests,
+                replay: replay,
+                date: Date()
+            ),
+            at: 0
+        )
+        history = Array(history.prefix(250))
+        persist()
+        return xp
+    }
+
+    func bestScore(for caseID: String) -> Int? {
+        history.filter { $0.caseID == caseID }.map(\.score).max()
+    }
+
+    func attempts(for caseID: String) -> Int {
+        history.filter { $0.caseID == caseID }.count
+    }
+
+    func reset() {
+        points = 0
+        completedCases = 0
+        correctCases = 0
+        streak = 0
+        lastScore = 0
+        history = []
+        persist()
+    }
+
     private func persist() {
-        defaults.set(points, forKey: "progress.points"); defaults.set(completedCases, forKey: "progress.completed")
-        defaults.set(correctCases, forKey: "progress.correct"); defaults.set(streak, forKey: "progress.streak")
+        defaults.set(points, forKey: "progress.points")
+        defaults.set(completedCases, forKey: "progress.completed")
+        defaults.set(correctCases, forKey: "progress.correct")
+        defaults.set(streak, forKey: "progress.streak")
         defaults.set(lastScore, forKey: "progress.lastScore")
+        if let data = try? encoder.encode(history) { defaults.set(data, forKey: "progress.history") }
+    }
+}
+
+extension Difficulty {
+    var multiplier: Double {
+        switch self {
+        case .entry: 1
+        case .apprentice: 1.5
+        case .technician: 2
+        case .senior: 2.5
+        case .master: 3.5
+        case .diagnostic: 5
+        }
     }
 }
 
 struct AppData {
     static let shared = AppData()
+
+    let brands: [FictionalBrand] = [
+        .init(id: "Nisshin Motors", shortName: "Nisshin"),
+        .init(id: "Stellar Motors Corp", shortName: "SMC"),
+        .init(id: "Bayern Werke", shortName: "Bayern"),
+        .init(id: "Kestrel Automotive", shortName: "Kestrel"),
+        .init(id: "Aeon Mobility", shortName: "Aeon")
+    ]
+
+    let achievements: [AchievementDefinition] = [
+        .init(id:"first_ro", name:"First Ticket", detail:"Close your first repair order.", symbol:"clipboard.fill", negative:false),
+        .init(id:"flawless", name:"Spotless", detail:"Solve a case with no wasted tests.", symbol:"sparkles", negative:false),
+        .init(id:"flawless5", name:"Consistent", detail:"Five nearly flawless diagnoses.", symbol:"medal.fill", negative:false),
+        .init(id:"streak5", name:"Streak King", detail:"Solve five repair orders in a row.", symbol:"flame.fill", negative:false),
+        .init(id:"streak8", name:"In The Zone", detail:"Solve eight repair orders in a row.", symbol:"bolt.fill", negative:false),
+        .init(id:"master", name:"Master Calling", detail:"Reach Master Technician rank.", symbol:"crown.fill", negative:false),
+        .init(id:"century", name:"Century Club", detail:"Earn 10,000 total XP.", symbol:"trophy.fill", negative:false),
+        .init(id:"big_ticket", name:"Big Ticket", detail:"Score 95+ on a Master or Diagnostic case.", symbol:"star.fill", negative:false),
+        .init(id:"goose_egg", name:"Goose Egg", detail:"Score zero on a repair order. Bold strategy.", symbol:"xmark.seal.fill", negative:true),
+        .init(id:"parts_cannon", name:"Parts Cannon", detail:"Make five or more wasted test moves in one case.", symbol:"hammer.fill", negative:true),
+        .init(id:"grease_monkey", name:"Grease Monkey", detail:"Rack up 50 wasted tests across your career.", symbol:"drop.fill", negative:true),
+        .init(id:"wrong_way", name:"Wrong Way", detail:"Stay below 20% case accuracy after five jobs.", symbol:"wrongwaysign.fill", negative:true),
+        .init(id:"comeback_entry", name:"Comeback King — Entry", detail:"Average under 20 on Entry after multiple jobs.", symbol:"arrow.up.right.circle.fill", negative:true),
+        .init(id:"comeback_apprentice", name:"Comeback King — Apprentice", detail:"Average under 20 on Apprentice after multiple jobs.", symbol:"arrow.up.right.circle.fill", negative:true),
+        .init(id:"comeback_technician", name:"Comeback King — Technician", detail:"Average under 20 on Technician after multiple jobs.", symbol:"arrow.up.right.circle.fill", negative:true),
+        .init(id:"comeback_senior", name:"Comeback King — Senior", detail:"Average under 20 on Senior after multiple jobs.", symbol:"arrow.up.right.circle.fill", negative:true),
+        .init(id:"comeback_master", name:"Comeback King — Master", detail:"Average under 20 on Master after multiple jobs.", symbol:"arrow.up.right.circle.fill", negative:true),
+        .init(id:"comeback_specialist", name:"Comeback King — Diagnostic", detail:"Average under 20 on Diagnostic after multiple jobs.", symbol:"arrow.up.right.circle.fill", negative:true)
+    ]
+
     let tools: [DiagnosticTool] = [
         .init(id:"flashlight", name:"Inspection Light", symbol:"flashlight.on.fill", hint:"Visual inspection of leaks, wiring, wear and damage."),
         .init(id:"scan_tool", name:"Scan Tool", symbol:"waveform.path.ecg.rectangle", hint:"Read DTCs, freeze-frame and live data."),
@@ -53,7 +242,11 @@ struct AppData {
         .init(id:"smoke_machine", name:"Smoke Machine", symbol:"aqi.medium", hint:"Locate intake and EVAP leaks."),
         .init(id:"test_drive", name:"Road Test", symbol:"road.lanes", hint:"Reproduce the concern under load.")
     ]
-    var toolReferences: [ToolReference] { tools.map { .init(id:$0.id, name:$0.name, symbol:$0.symbol, use:$0.hint, tip:"Use the least invasive test that can prove or eliminate a theory.") } }
+
+    var toolReferences: [ToolReference] {
+        tools.map { .init(id:$0.id, name:$0.name, symbol:$0.symbol, use:$0.hint, tip:"Use the least invasive test that can prove or eliminate a theory.") }
+    }
+
     var cases: [DiagnosticCase] = []
     var aseQuestions: [ASEQuestion] = []
 
@@ -63,7 +256,7 @@ struct AppData {
         func c(_ id:String,_ text:String,_ correct:Bool=false) -> DiagnosisChoice { .init(id:id, text:text, correct:correct) }
 
         cases = [
-            .init(id:"entry-battery", difficulty:.entry, brand:nil,
+            .init(id:"entry-battery", difficulty:.entry, brand:"Kestrel Automotive",
                   repairOrder:.init(vehicle:"2018 Kestrel Vector 2.0", mileage:71220, complaint:"Single click when starting in the morning; lights look normal.", notes:"Jump-started once last week."),
                   tools:[t("flashlight"),t("multimeter")],
                   inspections:[i("e1",.underHood,"Battery terminals","flashlight",true,"Negative terminal has heavy corrosion between the terminal and post."),i("e2",.underHood,"Battery voltage","multimeter",false,"Battery rests at 12.62 V."),i("e3",.underHood,"Ground-side voltage drop","multimeter",true,"1.84 V is measured during the crank attempt — excessive resistance in the ground path.")],
@@ -71,7 +264,7 @@ struct AppData {
                   repairs:[c("r1","Service the negative terminal/cable and verify cranking voltage drop",true),c("r2","Replace starter"),c("r3","Replace battery without testing"),c("r4","Program new keys")],
                   explanation:"A charged battery and an excessive ground-side voltage drop prove resistance in the return path.", rootCause:"High-resistance negative battery terminal", correctRepair:"Clean/repair the connection and retest under load", takeaways:["Static battery voltage does not prove the starting circuit is healthy.","Voltage-drop testing finds resistance under load."]),
 
-            .init(id:"apprentice-misfire", difficulty:.apprentice, brand:"SMC",
+            .init(id:"apprentice-misfire", difficulty:.apprentice, brand:"Stellar Motors Corp",
                   repairOrder:.init(vehicle:"2019 SMC Zenith LT", mileage:84500, complaint:"Check-engine light and stumble at highway speed under light acceleration.", notes:"More noticeable on hills."),
                   tools:[t("scan_tool"),t("flashlight"),t("multimeter"),t("test_drive")],
                   inspections:[i("a1",.cockpit,"Misfire counters","scan_tool",true,"P0300 is stored; cylinder 1 misfire count climbs rapidly under load."),i("a2",.underHood,"Cylinder 1 plug","flashlight",true,"Plug shows carbon tracking and a worn electrode."),i("a3",.underHood,"Coil power/ground","multimeter",false,"Power and ground are within specification."),i("a4",.exterior,"Loaded road test","test_drive",true,"Swapping coil 1 to another cylinder moves the misfire with the coil.")],
@@ -86,6 +279,14 @@ struct AppData {
                   causes:[c("c1","Failed inverter cooling pump",true),c("c2","Traction motor failure"),c("c3","EVAP fault"),c("c4","Accessory belt")],
                   repairs:[c("r1","Replace pump, repair leak as needed, refill and bleed circuit",true),c("r2","Replace traction motor"),c("r3","Replace HV battery"),c("r4","Replace belt")],
                   explanation:"Temperature correlation plus the physically isolated pump noise points to loss of inverter cooling capacity.", rootCause:"Failed inverter cooling pump", correctRepair:"Replace pump and restore/bleed coolant circuit", takeaways:["Time and temperature are diagnostic variables.","Prove whether the warning code is cause or consequence."]),
+
+            .init(id:"technician-bayern-brake", difficulty:.technician, brand:"Bayern Werke",
+                  repairOrder:.init(vehicle:"2020 Bayern Werke R3 Touring", mileage:66940, complaint:"ABS activates at very low speed just before stopping on dry pavement.", notes:"No warning lamps; front wheel bearing replaced recently."),
+                  tools:[t("scan_tool"),t("flashlight"),t("multimeter"),t("test_drive")],
+                  inspections:[i("b1",.cockpit,"Wheel-speed graph","scan_tool",true,"Right-front wheel speed drops to 0 mph intermittently while the other three still show 4–5 mph."),i("b2",.underCar,"Right-front sensor/tone surface","flashlight",true,"Sensor is seated, but metallic debris is visible at the magnetic encoder surface."),i("b3",.underCar,"Sensor circuit","multimeter",false,"Power, ground and signal wiring pass static checks."),i("b4",.exterior,"Low-speed validation","test_drive",true,"Cleaning the encoder area restores a stable right-front signal and false ABS activation disappears.")],
+                  causes:[c("c1","Contaminated right-front magnetic encoder signal",true),c("c2","ABS hydraulic unit"),c("c3","Brake booster"),c("c4","Rear wheel-speed sensor")],
+                  repairs:[c("r1","Correct encoder contamination/damage and verify wheel-speed data",true),c("r2","Replace ABS module"),c("r3","Replace brake booster"),c("r4","Flush brake fluid")],
+                  explanation:"The event lines up with one wheel-speed input dropping out at walking speed. Static wiring checks are normal, and correcting the encoder signal removes the concern.", rootCause:"Right-front wheel-speed encoder signal dropout", correctRepair:"Correct the encoder surface/sensor interface and verify live wheel-speed data", takeaways:["Graph all related wheel speeds together.","Recent work near the fault area deserves inspection, not assumptions."]),
 
             .init(id:"senior-can", difficulty:.senior, brand:"Kestrel Automotive",
                   repairOrder:.init(vehicle:"2020 Kestrel Vector AWD", mileage:63890, complaint:"Multiple warnings and briefly heavy steering after sharp bumps.", notes:"Intermittent; battery recently replaced."),
@@ -125,5 +326,50 @@ struct AppData {
             q("a7","A7","Both heater hoses are hot but cabin heat is poor. Most likely?","B","No coolant flow","Blend-door/air-side fault","Low engine oil","Bad spark plug","Hot hoses indicate hot coolant reaches the heater core."),
             q("a8","A8","Short-term fuel trim is -15%. What does it mean?","B","PCM adds fuel","PCM subtracts fuel for a rich condition","Battery is low","Catalyst is restricted","Negative trim means commanded fuel is being reduced.")
         ]
+    }
+
+    func caseFor(difficulty: Difficulty, dealerBrand: String?) -> DiagnosticCase? {
+        let levelCases = cases.filter { $0.difficulty == difficulty }
+        guard let base = levelCases.randomElement() else { return nil }
+        guard let dealerBrand else { return base }
+        if let exact = levelCases.filter({ $0.brand == dealerBrand }).randomElement() { return exact }
+        return dealerVariant(base, brand: dealerBrand)
+    }
+
+    private func dealerVariant(_ base: DiagnosticCase, brand: String) -> DiagnosticCase {
+        let model: String
+        switch brand {
+        case "Nisshin Motors": model = "Nisshin Field-X"
+        case "Stellar Motors Corp": model = "SMC Zenith"
+        case "Bayern Werke": model = "Bayern Werke R4"
+        case "Kestrel Automotive": model = "Kestrel Vector"
+        case "Aeon Mobility": model = "Aeon Meridian"
+        default: model = brand
+        }
+        let order = RepairOrder(
+            vehicle: "\(year(from: base.repairOrder.vehicle)) \(model)",
+            mileage: base.repairOrder.mileage,
+            complaint: base.repairOrder.complaint,
+            notes: base.repairOrder.notes + " Dealer Mode training variant."
+        )
+        let slug = brand.lowercased().replacingOccurrences(of: " ", with: "-")
+        return DiagnosticCase(
+            id: "\(base.id)-dealer-\(slug)",
+            difficulty: base.difficulty,
+            brand: brand,
+            repairOrder: order,
+            tools: base.tools,
+            inspections: base.inspections,
+            causes: base.causes,
+            repairs: base.repairs,
+            explanation: base.explanation,
+            rootCause: base.rootCause,
+            correctRepair: base.correctRepair,
+            takeaways: base.takeaways
+        )
+    }
+
+    private func year(from vehicle: String) -> String {
+        String(vehicle.prefix(4)).allSatisfy(\.isNumber) ? String(vehicle.prefix(4)) : "2021"
     }
 }
