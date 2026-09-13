@@ -6,8 +6,17 @@ final class PurchaseManager: ObservableObject {
     @Published private(set) var product: Product?
     @Published private(set) var isPro = false
     @Published var message: String?
+    private var transactionTask: Task<Void, Never>?
 
     func prepare() async {
+        if transactionTask == nil {
+            transactionTask = Task { [weak self] in
+                for await _ in Transaction.updates {
+                    guard let self else { return }
+                    await self.refreshEntitlements()
+                }
+            }
+        }
         await refreshEntitlements()
         do {
             product = try await Product.products(for: [AppConfig.proProductID]).first
@@ -68,5 +77,6 @@ final class PurchaseManager: ObservableObject {
         }
     }
 
+    deinit { transactionTask?.cancel() }
     enum PurchaseError: Error { case failedVerification }
 }
