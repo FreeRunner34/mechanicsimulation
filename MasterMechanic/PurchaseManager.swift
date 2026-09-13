@@ -5,31 +5,37 @@ import StoreKit
 final class PurchaseManager: ObservableObject {
     @Published private(set) var product: Product?
     @Published private(set) var isPro = false
+    @Published private(set) var isLoadingProduct = false
     @Published var message: String?
+
     private var transactionTask: Task<Void, Never>?
 
     func prepare() async {
-        if transactionTask == nil {
-            transactionTask = Task { [weak self] in
-                for await _ in Transaction.updates {
-                    guard let self else { return }
-                    await self.refreshEntitlements()
-                }
-            }
-        }
+        startTransactionListenerIfNeeded()
         await refreshEntitlements()
+        await loadProduct()
+    }
+
+    func loadProduct() async {
+        isLoadingProduct = true
+        defer { isLoadingProduct = false }
         do {
             product = try await Product.products(for: [AppConfig.proProductID]).first
+            if product == nil {
+                message = "Pro purchase information is not available in this store yet."
+            }
         } catch {
+            product = nil
             message = "Pro purchase information is unavailable right now."
         }
     }
 
     func buyPro() async {
         guard let product else {
-            message = "Create the StoreKit product \(AppConfig.proProductID) in App Store Connect before testing purchases."
+            message = "Pro is not available from the App Store right now."
             return
         }
+
         do {
             let result = try await product.purchase()
             switch result {
@@ -61,13 +67,36 @@ final class PurchaseManager: ObservableObject {
 
     func refreshEntitlements() async {
         var active = false
+        let now = Date()
+
         for await result in Transaction.currentEntitlements {
-            guard case .verified(let transaction) = result else { continue }
-            if transaction.productID == AppConfig.proProductID, transaction.revocationDate == nil {
+            guard case .verified(let transaction) = result,
+                  transaction.productID == AppConfig.proProductID,
+                  transaction.revocationDate == nil else { continue }
+
+            if let expiration = transaction.expirationDate {
+                if expiration > now { active = true }
+            } else {
                 active = true
             }
         }
+
         isPro = active
+    }
+
+    private func startTransactionListenerIfNeeded() {
+        guard transactionTask == nil else { return }
+        transactionTask = Task { [weak self] in
+            for await result in Transaction.updates {
+                guard let self else { return }
+                guard case .verified(let transaction) = result else { continue }
+
+                if transaction.productID == AppConfig.proProductID {
+                    await transaction.finish()
+                    await self.refreshEntitlements()
+                }
+            }
+        }
     }
 
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
@@ -78,5 +107,8 @@ final class PurchaseManager: ObservableObject {
     }
 
     deinit { transactionTask?.cancel() }
-    enum PurchaseError: Error { case failedVerification }
+
+    enum PurchaseError: Error {
+        case failedVerification
+    }
 }

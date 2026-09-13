@@ -36,15 +36,14 @@ Do not add Stripe or an external checkout for the in-app Pro feature unlock.
 The native application architecture is in place, but Apple requires developer-owned metadata/assets that cannot be safely guessed:
 
 1. Add the final **1024 × 1024 App Store icon** to `Assets.xcassets/AppIcon.appiconset`.
-2. Replace the placeholder privacy URL in `AppConfig.privacyURL` with your published privacy-policy page and use the same URL in App Store Connect.
-3. Create/configure the StoreKit subscription in App Store Connect and submit it with the first app version.
-4. Set your Apple Developer Team/signing certificate in Xcode.
-5. Complete the App Privacy questionnaire so it matches the shipping binary. The current native build has no ads, tracking, Base44 SDK, analytics SDK, or app-level account.
-6. Add screenshots, description, support URL, age rating and other App Store Connect metadata.
+2. Enroll/select the Apple Developer Team and configure signing.
+3. Create/configure the StoreKit subscription in App Store Connect using `com.freerunner34.mastermechanic.pro.monthly`, then switch from local StoreKit testing to the App Store sandbox for final purchase validation.
+4. Complete the App Privacy questionnaire so it matches the shipping binary. The current native build has no ads, tracking, Base44 SDK, analytics SDK, or app-level account.
+5. Add screenshots, description, age rating and the remaining App Store Connect metadata. Public privacy and support pages are already present in this repository.
 
 ## Content migration status
 
-The repo contains a native case engine plus representative cases from the original live Base44 app across the complete difficulty ladder. It also contains an initial ASE-style bank across A1–A8. The original Base44 database currently contains substantially more generated cases/questions; those can be converted into bundled native content without changing this architecture.
+The native catalog includes all 80 RepairCase records migrated from the original Base44 database, plus native advanced cases across the complete difficulty ladder. Imported cases preserve each repair order's vehicle, mileage, complaint, writer notes, verified root cause, and repair while repeated Base44 case families use shared native diagnostic-test templates. The ASE-style practice bank now contains at least five questions in each A1–A8 area.
 
 ## Architecture
 

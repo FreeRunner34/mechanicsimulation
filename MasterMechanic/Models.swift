@@ -107,7 +107,8 @@ struct ToolReference: Identifiable, Hashable {
 
 enum AppConfig {
     static let proProductID = "com.freerunner34.mastermechanic.pro.monthly"
-    static let privacyURL = URL(string: "https://example.com/mastermechanic/privacy")!
+    static let privacyURL = URL(string: "https://github.com/FreeRunner34/mechanicsimulation/blob/main/PRIVACY.md")!
+    static let supportURL = URL(string: "https://github.com/FreeRunner34/mechanicsimulation/blob/main/SUPPORT.md")!
     static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
 }
 
@@ -120,7 +121,9 @@ enum AppConfig {
 
 extension AppData {
     var playableCases: [DiagnosticCase] {
-        cases + Self.additionalCases(using: tools)
+        let native = cases + Self.additionalCases(using: tools)
+        let existingIDs = Set(native.map(\.id))
+        return native + ImportedBase44Cases.load().filter { !existingIDs.contains($0.id) }
     }
 
     func nextCase(difficulty: Difficulty, excluding excludedIDs: Set<String> = []) -> DiagnosticCase? {
