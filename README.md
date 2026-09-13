@@ -6,7 +6,8 @@ This repository is the native iOS replacement for the original Base44 **Master M
 
 - Rebuilt in **SwiftUI** as a native iPhone app. There is no web wrapper and no Base44 runtime dependency.
 - Core simulator progress is stored on-device; no MasterMechanic login is required.
-- The Base44/Stripe digital Pro unlock has been replaced with **StoreKit 2**.
+- The Base44/Stripe digital Pro flow has been replaced with **StoreKit 2**.
+- Pro is a **one-time non-consumable unlock**, not a subscription.
 - Added an Apple privacy manifest, including the `UserDefaults` required-reason declaration used by the app.
 - Preserved the diagnostic loop: repair order → bay view → tool selection → evidence → root cause → repair → scored result.
 - Preserved the six-level progression model from Entry Level through Diagnostic Specialist.
@@ -16,6 +17,7 @@ This repository is the native iOS replacement for the original Base44 **Master M
 - Replays are tracked but do not inflate career XP, completed-case counts, accuracy, or streaks.
 - Expanded ASE-style practice to **60+ questions in every A1–A8 area**. Each attempt builds a randomized 20-question test, rotates answer order, avoids repeating the same concept family within one test, and shows immediate answer feedback with explanations.
 - Vehicle brands are fictional to avoid presenting the simulator as an official OEM product.
+- Final 1024 × 1024 app icon is assigned in the asset catalog.
 
 ## Content migration
 
@@ -36,21 +38,25 @@ A paid Apple Developer Program membership is not required for the simulator work
 
 ## StoreKit testing before App Store Connect
 
-The project includes `MasterMechanic/MasterMechanic.storekit` with a local monthly Pro subscription matching the production product ID:
+The project includes `MasterMechanic/MasterMechanic.storekit` with a local **non-consumable Pro unlock** matching the production product ID:
 
 `com.freerunner34.mastermechanic.pro.monthly`
 
-The shared Xcode scheme uses this configuration for local StoreKit testing. The code supports product loading, verified purchases, transaction updates, entitlement refresh, expiration/revocation handling, and restore purchases.
+The identifier retains the original suffix for compatibility, but the product itself is configured as a one-time non-consumable purchase. It does not renew and does not create a recurring charge.
 
-The UI does not hard-code a storefront price. When connected to the App Store, it displays the localized price supplied by StoreKit.
+The shared Xcode scheme uses this configuration for local StoreKit testing. The code supports product loading, verified purchases, transaction updates, entitlement refresh, and restore purchases.
 
-Before distribution, create the corresponding auto-renewable subscription in App Store Connect. Do not add Stripe or another external checkout for the in-app Pro feature unlock.
+The UI does not hard-code the production storefront price. When connected to the App Store, it displays the localized price supplied by StoreKit. The local StoreKit configuration currently uses **$14.99** for testing; the actual App Store price can be selected later in App Store Connect.
+
+Before distribution, create the corresponding **non-consumable in-app purchase** in App Store Connect using the same product ID. Do not add Stripe or another external checkout for the in-app Pro feature unlock.
 
 ## Automated verification
 
 The repository contains an XCTest target and automated project preflight checks. CI is configured to:
 
 - validate the imported repair-order catalog and production configuration;
+- validate the one-time StoreKit product and randomized training-bank wiring;
+- require the final app icon to be assigned;
 - build the app in **Debug** and **Release** using Xcode 26 on macOS 26;
 - run native unit tests on an iPhone simulator, including catalog integrity, case rotation, Dealer Mode, replay progression rules, scoring/progress behavior, training-bank coverage, randomized practice-test construction, production URLs, and local StoreKit configuration.
 
@@ -63,15 +69,14 @@ The repository contains an XCTest target and automated project preflight checks.
 
 ## Remaining Apple/distribution work
 
-The engineering work that can be completed independently of the Apple Developer Program is essentially finished. The remaining distribution phase is developer/account owned:
+The remaining distribution phase is primarily developer/account owned:
 
-1. Add the final **1024 × 1024 App Store icon** to `Assets.xcassets/AppIcon.appiconset`.
-2. Enroll/select the Apple Developer Team and configure signing/capabilities.
-3. Create the App Store Connect app record and the subscription product `com.freerunner34.mastermechanic.pro.monthly`.
-4. Validate the real product using Apple's sandbox/TestFlight environment.
-5. Complete App Privacy and age-rating questionnaires.
-6. Add App Store screenshots, description, keywords, support/privacy metadata, pricing/availability, and other listing information.
-7. Archive, upload, TestFlight-test, and submit the release for App Review.
+1. Enroll/select the Apple Developer Team and configure signing/capabilities.
+2. Create the App Store Connect app record and the non-consumable product `com.freerunner34.mastermechanic.pro.monthly`.
+3. Validate the real product using Apple's Sandbox/TestFlight environment.
+4. Complete App Privacy and age-rating questionnaires.
+5. Add App Store screenshots, description, keywords, support/privacy metadata, pricing/availability, and other listing information.
+6. Archive, upload, TestFlight-test, and submit the release for App Review.
 
 ## Architecture
 
