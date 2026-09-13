@@ -1,0 +1,58 @@
+name: Expand ASE Practice Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/expand-training-ui.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Wire randomized practice tests and strengthen tests
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          views = Path('MasterMechanic/Views.swift')
+          text = views.read_text()
+          old = 'Text("Independent practice content; not affiliated with or endorsed by ASE.").font(.footnote).foregroundStyle(.secondary).padding(.bottom,5)'
+          new = 'Text("20-question tests drawn randomly from a 60+ question bank in each category. Independent practice content; not affiliated with or endorsed by ASE.").font(.footnote).foregroundStyle(.secondary).padding(.bottom,5)'
+          if old not in text:
+              raise SystemExit('Training subtitle anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = 'questions:AppData.shared.trainingQuestions.filter{$0.area==area.0}.shuffled()'
+          new = 'questions:AppData.shared.practiceTest(area:area.0, questionCount:20)'
+          if old not in text:
+              raise SystemExit('Quiz creation anchor not found')
+          text = text.replace(old, new, 1)
+          views.write_text(text)
+
+          tests = Path('MasterMechanicTests/MasterMechanicTests.swift')
+          text = tests.read_text()
+          text = text.replace('func testTrainingBankHasAtLeastFiveQuestionsPerArea()', 'func testTrainingBankHasAtLeastSixtyQuestionsPerArea()', 1)
+          text = text.replace('XCTAssertGreaterThanOrEqual(AppData.shared.trainingQuestions.filter { $0.area == area }.count, 5, area)', 'XCTAssertGreaterThanOrEqual(AppData.shared.trainingQuestions.filter { $0.area == area }.count, 60, area)', 1)
+
+          anchor = '''    func testDealerModeAlwaysReturnsSelectedBrand() {'''
+          addition = '''    func testPracticeTestsUseTwentyUniqueQuestionFamilies() {\n        for area in ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"] {\n            let questions = AppData.shared.practiceTest(area: area, questionCount: 20)\n            XCTAssertEqual(questions.count, 20, area)\n            XCTAssertEqual(Set(questions.map(\\.id)).count, 20, area)\n\n            let families = questions.map { question -> String in\n                let parts = question.id.split(separator: "-")\n                if question.id.hasPrefix("bank-"), parts.count >= 3 {\n                    return parts.prefix(3).joined(separator: "-")\n                }\n                return question.id\n            }\n            XCTAssertEqual(Set(families).count, 20, "Duplicate concept family in \\(area) practice test")\n        }\n    }\n\n'''
+          if anchor not in text:
+              raise SystemExit('Test insertion anchor not found')
+          text = text.replace(anchor, addition + anchor, 1)
+          tests.write_text(text)
+          PY
+
+          rm .github/workflows/expand-training-ui.yml
+
+      - name: Commit practice-test integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Use randomized 20-question ASE practice tests from 60+ banks"
+          git push origin HEAD:main
