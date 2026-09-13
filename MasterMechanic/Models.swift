@@ -108,4 +108,5 @@ struct ToolReference: Identifiable, Hashable {
 enum AppConfig {
     static let proProductID = "com.freerunner34.mastermechanic.pro.monthly"
     static let privacyURL = URL(string: "https://example.com/mastermechanic/privacy")!
+    static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
 }
