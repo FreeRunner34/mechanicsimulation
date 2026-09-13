@@ -10,7 +10,7 @@ MasterMechanic does not require a user account. Simulator progress, scores, stre
 
 ## Purchases
 
-If you purchase MasterMechanic Pro, Apple processes the transaction through the App Store. The app receives StoreKit transaction and entitlement information needed to determine whether Pro access is active. MasterMechanic does not receive or store your full payment-card information.
+If you purchase the one-time MasterMechanic Pro unlock, Apple processes the transaction through the App Store. The app receives StoreKit transaction and entitlement information needed to determine whether Pro access is active. MasterMechanic does not receive or store your full payment-card information.
 
 ## Tracking, advertising, and analytics
 
