@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Apply pre-Apple refactor
-        run: python3 scripts/preapple_refactor.py
+      - name: Apply final native feature parity patch
+        run: python3 scripts/preapple_parity.py
       - name: Commit hardened project
         run: |
           git config user.name "github-actions[bot]"
@@ -26,5 +26,5 @@ jobs:
             echo "No changes to commit"
             exit 0
           fi
-          git commit -m "Harden app before Apple Developer setup"
+          git commit -m "Finish native feature parity before Apple setup"
           git push origin HEAD:main
