@@ -451,7 +451,7 @@ extension AppData {
                 difficulty: .senior,
                 brand: "Kestrel Automotive",
                 repairOrder: .init(vehicle: "2021 Kestrel Vector Turbo", mileage: 59200, complaint: "Long crank occurs only after a hot soak; cold starts are always normal.", notes: "No current DTCs."),
-                tools: [tool("scan_tool"), tool("pressure_gauge"), tool("multimeter"), tool("test_drive")],
+                tools: [tool("scan_tool"), tool("pressure_gauge"), tool("multimeter"), tool("flashlight"), tool("test_drive")],
                 inspections: [
                     inspection("sf1", .underHood, "Hot-soak fuel pressure", "pressure_gauge", true, "Rail pressure bleeds to nearly zero within minutes of shutdown when hot."),
                     inspection("sf2", .cockpit, "Pump command during hot restart", "scan_tool", true, "PCM commands normal pump duty during the extended crank."),
