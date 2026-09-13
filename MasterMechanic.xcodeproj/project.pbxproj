@@ -13,6 +13,8 @@
 		A10000000000000000000005 /* Views.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000005 /* Views.swift */; };
 		A10000000000000000000006 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000007 /* Assets.xcassets */; };
 		A10000000000000000000007 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B10000000000000000000008 /* PrivacyInfo.xcprivacy */; };
+		A10000000000000000000008 /* ImportedBase44Cases.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000A /* ImportedBase44Cases.swift */; };
+		A10000000000000000000009 /* ImportedCaseHook.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1000000000000000000000B /* ImportedCaseHook.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -25,6 +27,8 @@
 		B10000000000000000000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B10000000000000000000008 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B10000000000000000000009 /* MasterMechanic.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MasterMechanic.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B1000000000000000000000A /* ImportedBase44Cases.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportedBase44Cases.swift; sourceTree = "<group>"; };
+		B1000000000000000000000B /* ImportedCaseHook.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImportedCaseHook.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -51,6 +55,8 @@
 				B10000000000000000000001 /* MasterMechanicApp.swift */,
 				B10000000000000000000002 /* Models.swift */,
 				B10000000000000000000003 /* AppData.swift */,
+				B1000000000000000000000A /* ImportedBase44Cases.swift */,
+				B1000000000000000000000B /* ImportedCaseHook.swift */,
 				B10000000000000000000004 /* PurchaseManager.swift */,
 				B10000000000000000000005 /* Views.swift */,
 				B10000000000000000000006 /* Info.plist */,
@@ -132,6 +138,8 @@
 				A10000000000000000000001 /* MasterMechanicApp.swift in Sources */,
 				A10000000000000000000002 /* Models.swift in Sources */,
 				A10000000000000000000003 /* AppData.swift in Sources */,
+				A10000000000000000000008 /* ImportedBase44Cases.swift in Sources */,
+				A10000000000000000000009 /* ImportedCaseHook.swift in Sources */,
 				A10000000000000000000004 /* PurchaseManager.swift in Sources */,
 				A10000000000000000000005 /* Views.swift in Sources */,
 			);
