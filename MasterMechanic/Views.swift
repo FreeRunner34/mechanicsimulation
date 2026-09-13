@@ -66,31 +66,77 @@ struct DashboardView: View {
 
 struct SimulatorView: View {
     @EnvironmentObject var purchases: PurchaseManager
+    @EnvironmentObject var progress: ProgressStore
     @State private var selectedCase: DiagnosticCase?
+    @State private var pendingNextDifficulty: Difficulty?
+    @State private var lastLaunchedCaseID: String?
     private let data = AppData.shared
+
     var body: some View {
         ScrollView {
             VStack(alignment:.leading,spacing:12) {
                 Text("Pick a difficulty").font(.title.bold())
                 Text("Entry Level and Apprentice are free. Pro unlocks the full diagnostic ladder.").foregroundStyle(.secondary).padding(.bottom,4)
                 ForEach(Difficulty.allCases) { level in
-                    let cases = data.cases.filter { $0.difficulty == level }
+                    let available = data.playableCases.filter { $0.difficulty == level }
                     let locked = level.isPro && !purchases.isPro
                     Button {
-                        if !locked { selectedCase = cases.randomElement() }
+                        if !locked { beginCase(level) }
                     } label: {
                         HStack(spacing:14) {
                             Circle().fill(locked ? Color.white.opacity(0.07):accent.opacity(0.14)).frame(width:48,height:48).overlay(Image(systemName:locked ? "lock.fill":"wrench.adjustable.fill").foregroundStyle(locked ? Color.secondary:accent))
-                            VStack(alignment:.leading,spacing:4) { Text(level.rawValue).font(.headline).foregroundStyle(.white); Text(description(level)).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading) }
+                            VStack(alignment:.leading,spacing:4) {
+                                Text(level.rawValue).font(.headline).foregroundStyle(.white)
+                                Text(description(level)).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                                if !available.isEmpty {
+                                    Text("\(available.count) repair orders in rotation").font(.caption2).foregroundStyle(accent.opacity(0.8))
+                                }
+                            }
                             Spacer(); Text(locked ? "PRO":"OPEN").font(.caption2.bold()).foregroundStyle(locked ? accent:Color.secondary)
                         }.padding(15).background(panel).clipShape(RoundedRectangle(cornerRadius:18))
-                    }.buttonStyle(.plain).disabled(cases.isEmpty)
+                    }.buttonStyle(.plain).disabled(available.isEmpty)
                 }
                 if !purchases.isPro { NavigationLink("Unlock advanced levels") { ProView() }.buttonStyle(PrimaryButtonStyle()).padding(.top,6) }
             }.padding()
-        }.background(Color.black.ignoresSafeArea()).navigationTitle("Simulator")
-            .fullScreenCover(item:$selectedCase) { value in NavigationStack { CaseSessionView(diagnosticCase:value) } }
+        }
+        .background(Color.black.ignoresSafeArea())
+        .navigationTitle("Simulator")
+        .fullScreenCover(item:$selectedCase, onDismiss: {
+            guard let level = pendingNextDifficulty else { return }
+            pendingNextDifficulty = nil
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                beginCase(level)
+            }
+        }) { value in
+            NavigationStack {
+                CaseSessionView(diagnosticCase:value, onNext: {
+                    pendingNextDifficulty = value.difficulty
+                    lastLaunchedCaseID = value.id
+                    selectedCase = nil
+                })
+            }
+        }
     }
+
+    private func beginCase(_ level: Difficulty) {
+        let pool = data.playableCases.filter { $0.difficulty == level }
+        guard !pool.isEmpty else { return }
+
+        var excluded = Set<String>()
+        if let lastLaunchedCaseID { excluded.insert(lastLaunchedCaseID) }
+
+        let recentLimit = max(1, min(4, pool.count - 1))
+        let recentIDs = progress.history
+            .filter { $0.difficulty == level }
+            .prefix(recentLimit)
+            .map(\.caseID)
+        excluded.formUnion(recentIDs)
+
+        let next = data.nextCase(difficulty: level, excluding: excluded) ?? pool.randomElement()
+        selectedCase = next
+        lastLaunchedCaseID = next?.id
+    }
+
     private func description(_ d:Difficulty)->String { switch d { case .entry:"Single-system faults and obvious evidence."; case .apprentice:"Scan data and basic electrical proof."; case .technician:"Multi-symptom system diagnosis."; case .senior:"Intermittent network and circuit faults."; case .master:"Symptoms that imitate another system."; case .diagnostic:"Shared circuits and dynamic proof tests." } }
 }
 
@@ -98,6 +144,7 @@ struct CaseSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var progress: ProgressStore
     let diagnosticCase: DiagnosticCase
+    let onNext: () -> Void
     @State private var bay: BayView = .underHood
     @State private var toolID:String?
     @State private var revealed:Set<String> = []
@@ -140,7 +187,7 @@ struct CaseSessionView: View {
         }.background(Color.black.ignoresSafeArea()).navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement:.topBarLeading){Button("Exit"){dismiss()}.foregroundStyle(.secondary)}; ToolbarItem(placement:.topBarTrailing){Button{showRO=true}label:{Image(systemName:"doc.text.fill")}.tint(accent)} }
             .sheet(isPresented:$showRO){RepairOrderView(order:diagnosticCase.repairOrder)}
-            .fullScreenCover(item:$result){ value in ResultView(result:value,diagnosticCase:diagnosticCase){dismiss()} }
+            .fullScreenCover(item:$result){ value in ResultView(result:value,diagnosticCase:diagnosticCase,next:onNext){dismiss()} }
     }
     private func run(_ item:Inspection){ guard toolID == item.toolID else{return}; _ = revealed.insert(item.id); UIImpactFeedbackGenerator(style:.light).impactOccurred() }
     private func submit() {
@@ -150,7 +197,13 @@ struct CaseSessionView: View {
         let total = max(diagnosticCase.inspections.filter { $0.productive }.count, 1)
         let wasted = diagnosticCase.inspections.filter { revealed.contains($0.id) && $0.productive == false }.count
         let score = max(0, min(100, (cause ? 45 : 0) + (repair ? 35 : 0) + Int(20 * Double(productive) / Double(total)) - wasted * 2))
-        _ = progress.record(case: diagnosticCase, score: score, solved: cause && repair, tests: revealed.count, wastedTests: wasted)
+        _ = progress.record(
+            case: diagnosticCase,
+            score: score,
+            solved: cause && repair,
+            tests: revealed.count,
+            wastedTests: wasted
+        )
         result = .init(score: score, solved: cause && repair, correctCause: cause, correctRepair: repair, tests: revealed.count, wastedTests: wasted)
     }
     private var selectedToolName:String { diagnosticCase.tools.first{$0.id==toolID}?.name.uppercased() ?? "SELECT A TOOL" }
@@ -160,13 +213,17 @@ struct CaseSessionView: View {
 
 struct CaseResult:Identifiable{let id=UUID();let score:Int;let solved:Bool;let correctCause:Bool;let correctRepair:Bool;let tests:Int;let wastedTests:Int}
 struct ResultView: View {
-    let result:CaseResult; let diagnosticCase:DiagnosticCase; let done:()->Void
+    let result:CaseResult
+    let diagnosticCase:DiagnosticCase
+    let next:()->Void
+    let done:()->Void
     var body: some View { ZStack { Color.black.ignoresSafeArea(); ScrollView { VStack(spacing:18) {
         ZStack { Circle().stroke(outline,lineWidth:12); Circle().trim(from:0,to:Double(result.score)/100).stroke(accent,style:StrokeStyle(lineWidth:12,lineCap:.round)).rotationEffect(.degrees(-90)); Text("\(result.score)").font(.system(size:52,weight:.black,design:.rounded)) }.frame(width:170,height:170).padding(.top,22)
         Text(result.solved ? "COMEBACK AVOIDED":"CUSTOMER CAME BACK").font(.title2.weight(.black)).foregroundStyle(result.solved ? accent:.red)
         VStack(alignment:.leading,spacing:12){ResultLine(label:"Root cause",value:diagnosticCase.rootCause,pass:result.correctCause);ResultLine(label:"Repair",value:diagnosticCase.correctRepair,pass:result.correctRepair);ResultLine(label:"Tests",value:"\(result.tests) (\(result.wastedTests) non-productive)",pass:nil)}.card()
         VStack(alignment:.leading,spacing:9){SectionHeader("WHY","DIAGNOSTIC LOGIC");Text(diagnosticCase.explanation).foregroundStyle(.white.opacity(0.8));ForEach(diagnosticCase.takeaways,id:\.self){Label($0,systemImage:"checkmark.circle.fill").font(.subheadline).foregroundStyle(.secondary)}}.card()
-        Button("Return to garage",action:done).buttonStyle(PrimaryButtonStyle())
+        Button("Next repair order",action:next).buttonStyle(PrimaryButtonStyle())
+        Button("Return to garage",action:done).font(.headline).foregroundStyle(.secondary).padding(.vertical,8)
     }.padding() } } }
 }
 
