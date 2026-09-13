@@ -102,25 +102,27 @@ final class MasterMechanicTests: XCTestCase {
         XCTAssertEqual(AppConfig.proProductID, "com.freerunner34.mastermechanic.pro.monthly")
     }
 
-    func testLocalStoreKitConfigurationCanCreateProSubscriptionTransaction() throws {
-        let testSourceURL = URL(fileURLWithPath: #filePath)
-        let repositoryRoot = testSourceURL
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let configurationURL = repositoryRoot
-            .appendingPathComponent("MasterMechanic")
-            .appendingPathComponent("MasterMechanic.storekit")
-
+    func testLocalStoreKitConfigurationIsOneTimeNonConsumable() throws {
+        let configurationURL = localStoreKitURL()
         XCTAssertTrue(FileManager.default.fileExists(atPath: configurationURL.path))
 
-        let session = try SKTestSession(contentsOf: configurationURL)
+        let data = try Data(contentsOf: configurationURL)
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let products = try XCTUnwrap(root["products"] as? [[String: Any]])
+        let product = try XCTUnwrap(products.first { ($0["productID"] as? String) == AppConfig.proProductID })
+        XCTAssertEqual(product["type"] as? String, "NonConsumable")
+        XCTAssertTrue((root["subscriptionGroups"] as? [[String: Any]])?.isEmpty ?? true)
+    }
+
+    func testLocalStoreKitConfigurationCanCreateProUnlockTransaction() throws {
+        let session = try SKTestSession(contentsOf: localStoreKitURL())
         session.disableDialogs = true
         session.clearTransactions()
         try session.buyProduct(productIdentifier: AppConfig.proProductID)
 
         XCTAssertTrue(
             session.allTransactions().contains { $0.productIdentifier == AppConfig.proProductID },
-            "Local StoreKit configuration did not create the Pro subscription transaction."
+            "Local StoreKit configuration did not create the one-time Pro unlock transaction."
         )
     }
 
@@ -145,5 +147,13 @@ final class MasterMechanicTests: XCTestCase {
         XCTAssertEqual(progress.points, 0)
         XCTAssertEqual(progress.completedCases, 0)
         XCTAssertTrue(progress.history.isEmpty)
+    }
+
+    private func localStoreKitURL() -> URL {
+        URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("MasterMechanic")
+            .appendingPathComponent("MasterMechanic.storekit")
     }
 }
