@@ -12,6 +12,21 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+      - name: Verify migrated Base44 repair orders
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          text = Path('MasterMechanic/ImportedBase44Cases.swift').read_text()
+          block = text.split('private static let rawSeeds = """', 1)[1].split('"""', 1)[0]
+          rows = [line for line in block.splitlines() if '¦' in line]
+          assert len(rows) == 80, f'Expected 80 imported ROs, found {len(rows)}'
+          for number, row in enumerate(rows, 1):
+              fields = row.split('¦')
+              assert len(fields) == 9, f'RO row {number} has {len(fields)} fields instead of 9'
+              assert fields[1] in {'E','A','T','S','M','D'}, f'RO row {number} has bad difficulty {fields[1]!r}'
+              int(fields[4])
+          print(f'Validated {len(rows)} migrated Repair Orders')
+          PY
       - name: Show Xcode version
         run: xcodebuild -version
       - name: Build native iOS target
