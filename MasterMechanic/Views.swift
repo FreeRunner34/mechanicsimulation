@@ -80,9 +80,9 @@ struct SimulatorView: View {
                         if !locked { selectedCase = cases.randomElement() }
                     } label: {
                         HStack(spacing:14) {
-                            Circle().fill(locked ? Color.white.opacity(0.07):accent.opacity(0.14)).frame(width:48,height:48).overlay(Image(systemName:locked ? "lock.fill":"wrench.adjustable.fill").foregroundStyle(locked ? .secondary:accent))
+                            Circle().fill(locked ? Color.white.opacity(0.07):accent.opacity(0.14)).frame(width:48,height:48).overlay(Image(systemName:locked ? "lock.fill":"wrench.adjustable.fill").foregroundStyle(locked ? Color.secondary:accent))
                             VStack(alignment:.leading,spacing:4) { Text(level.rawValue).font(.headline).foregroundStyle(.white); Text(description(level)).font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.leading) }
-                            Spacer(); Text(locked ? "PRO":"OPEN").font(.caption2.bold()).foregroundStyle(locked ? accent:.secondary)
+                            Spacer(); Text(locked ? "PRO":"OPEN").font(.caption2.bold()).foregroundStyle(locked ? accent:Color.secondary)
                         }.padding(15).background(panel).clipShape(RoundedRectangle(cornerRadius:18))
                     }.buttonStyle(.plain).disabled(cases.isEmpty)
                 }
@@ -124,9 +124,9 @@ struct CaseSessionView: View {
                 ForEach(visible) { item in
                     Button { run(item) } label: {
                         VStack(alignment:.leading,spacing:8) {
-                            HStack { Text(item.label).font(.headline).foregroundStyle(.white); Spacer(); if revealed.contains(item.id) { Image(systemName:item.productive ? "checkmark.seal.fill":"minus.circle.fill").foregroundStyle(item.productive ? accent:.secondary) } }
+                            HStack { Text(item.label).font(.headline).foregroundStyle(.white); Spacer(); if revealed.contains(item.id) { Image(systemName:item.productive ? "checkmark.seal.fill":"minus.circle.fill").foregroundStyle(item.productive ? accent:Color.secondary) } }
                             if revealed.contains(item.id) { Text(item.finding).font(.subheadline).foregroundStyle(.white.opacity(0.78)).multilineTextAlignment(.leading) }
-                            else { Text(toolID == item.toolID ? "Run test":"Select \(toolName(item.toolID))").font(.caption).foregroundStyle(toolID == item.toolID ? accent:.secondary) }
+                            else { Text(toolID == item.toolID ? "Run test":"Select \(toolName(item.toolID))").font(.caption).foregroundStyle(toolID == item.toolID ? accent:Color.secondary) }
                         }.padding(14).background(panel).clipShape(RoundedRectangle(cornerRadius:15))
                     }.buttonStyle(.plain)
                 }
@@ -238,7 +238,7 @@ struct PrivacyView:View{var body:some View{ScrollView{VStack(alignment:.leading,
 
 struct StatTile:View{let value:String;let label:String;let symbol:String;var body:some View{VStack(spacing:5){Image(systemName:symbol).foregroundStyle(accent);Text(value).font(.headline.monospacedDigit());Text(label).font(.caption2).foregroundStyle(.secondary)}.frame(maxWidth:.infinity).padding(.vertical,13).background(panel).clipShape(RoundedRectangle(cornerRadius:15))}}
 struct SectionHeader:View{let title:String;let subtitle:String;init(_ title:String,_ subtitle:String){self.title=title;self.subtitle=subtitle};var body:some View{HStack{Text(title).font(.caption.black).tracking(1.7);Spacer();Text(subtitle).font(.caption2.bold()).foregroundStyle(.secondary)}}}
-struct ChoiceRow:View{let text:String;let selected:Bool;let action:()->Void;var body:some View{Button(action:action){HStack(spacing:11){Image(systemName:selected ? "largecircle.fill.circle":"circle").foregroundStyle(selected ? accent:.secondary);Text(text).foregroundStyle(.white).multilineTextAlignment(.leading);Spacer()}.padding(13).background(selected ? accent.opacity(0.09):panel).overlay(RoundedRectangle(cornerRadius:14).stroke(selected ? accent.opacity(0.65):border)).clipShape(RoundedRectangle(cornerRadius:14))}.buttonStyle(.plain)}}
+struct ChoiceRow:View{let text:String;let selected:Bool;let action:()->Void;var body:some View{Button(action:action){HStack(spacing:11){Image(systemName:selected ? "largecircle.fill.circle":"circle").foregroundStyle(selected ? accent:Color.secondary);Text(text).foregroundStyle(.white).multilineTextAlignment(.leading);Spacer()}.padding(13).background(selected ? accent.opacity(0.09):panel).overlay(RoundedRectangle(cornerRadius:14).stroke(selected ? accent.opacity(0.65):border)).clipShape(RoundedRectangle(cornerRadius:14))}.buttonStyle(.plain)}}
 struct ResultLine:View{let label:String;let value:String;let pass:Bool?;var body:some View{HStack(alignment:.top){VStack(alignment:.leading,spacing:2){Text(label.uppercased()).font(.caption2.bold()).foregroundStyle(.secondary);Text(value).font(.subheadline)};Spacer();if let pass{Image(systemName:pass ? "checkmark.circle.fill":"xmark.circle.fill").foregroundStyle(pass ? accent:.red)}}}}
 struct ROField:View{let title:String;let text:String;var body:some View{VStack(alignment:.leading,spacing:6){Text(title).font(.caption.black).tracking(1.3).foregroundStyle(.black.opacity(0.5));Text(text).foregroundStyle(.black)}.padding(.top,21)}}
 struct PrimaryButtonStyle:ButtonStyle{func makeBody(configuration:Configuration)->some View{configuration.label.font(.headline).frame(maxWidth:.infinity).padding(.vertical,14).background(accent.opacity(configuration.isPressed ? 0.72:1)).foregroundStyle(.black).clipShape(RoundedRectangle(cornerRadius:15))}}
