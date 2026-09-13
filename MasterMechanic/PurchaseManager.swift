@@ -20,10 +20,18 @@ final class PurchaseManager: ObservableObject {
         isLoadingProduct = true
         defer { isLoadingProduct = false }
         do {
-            product = try await Product.products(for: [AppConfig.proProductID]).first
-            if product == nil {
+            let loaded = try await Product.products(for: [AppConfig.proProductID]).first
+            guard let loaded else {
+                product = nil
                 message = "Pro purchase information is not available in this store yet."
+                return
             }
+            guard loaded.type == .nonConsumable else {
+                product = nil
+                message = "Pro is temporarily unavailable because the App Store product is not configured as a one-time unlock."
+                return
+            }
+            product = loaded
         } catch {
             product = nil
             message = "Pro purchase information is unavailable right now."
@@ -59,7 +67,7 @@ final class PurchaseManager: ObservableObject {
         do {
             try await AppStore.sync()
             await refreshEntitlements()
-            message = isPro ? "Pro access restored." : "No active Pro subscription was found."
+            message = isPro ? "Pro access restored." : "No MasterMechanic Pro unlock was found for this Apple ID."
         } catch {
             message = "Restore failed: \(error.localizedDescription)"
         }
