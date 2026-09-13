@@ -14,7 +14,7 @@ This repository is the native iOS replacement for the original Base44 **Master M
 - Added an **RO Library** with search, difficulty filters, attempt counts, best scores, and replay.
 - Added **career stats and achievements** including XP, accuracy, streaks, comebacks, difficulty performance, recent ROs, and the achievement catalog.
 - Replays are tracked but do not inflate career XP, completed-case counts, accuracy, or streaks.
-- Expanded ASE-style practice to at least five questions in every A1–A8 area, with immediate answer feedback and explanations.
+- Expanded ASE-style practice to **60+ questions in every A1–A8 area**. Each attempt builds a randomized 20-question test, rotates answer order, avoids repeating the same concept family within one test, and shows immediate answer feedback with explanations.
 - Vehicle brands are fictional to avoid presenting the simulator as an official OEM product.
 
 ## Content migration
@@ -52,7 +52,7 @@ The repository contains an XCTest target and automated project preflight checks.
 
 - validate the imported repair-order catalog and production configuration;
 - build the app in **Debug** and **Release** using Xcode 26 on macOS 26;
-- run native unit tests on an iPhone simulator, including catalog integrity, case rotation, Dealer Mode, replay progression rules, scoring/progress behavior, training-bank coverage, production URLs, and local StoreKit configuration.
+- run native unit tests on an iPhone simulator, including catalog integrity, case rotation, Dealer Mode, replay progression rules, scoring/progress behavior, training-bank coverage, randomized practice-test construction, production URLs, and local StoreKit configuration.
 
 ## Privacy and support
 
@@ -79,7 +79,7 @@ The engineering work that can be completed independently of the Apple Developer 
 - `Models.swift` — simulator, repair-order, case rotation, Dealer Mode, and training models
 - `AppData.swift` — local progression, history, achievements, and bundled simulator/training content
 - `ImportedBase44Cases.swift` — offline migrated Base44 repair-order catalog
-- `ExtraASEQuestions.swift` — expanded A1–A8 training bank
+- `ExtraASEQuestions.swift` — expanded A1–A8 training bank and randomized practice-test builder
 - `PurchaseManager.swift` — StoreKit 2 purchase, restore, transaction updates, and entitlement state
 - `Views.swift` — native SwiftUI presentation, simulator, Dealer Mode, library, stats, achievements, and training flow
 - `MasterMechanic.storekit` — local StoreKit configuration
