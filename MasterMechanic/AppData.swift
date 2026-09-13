@@ -54,8 +54,8 @@ struct AppData {
         .init(id:"test_drive", name:"Road Test", symbol:"road.lanes", hint:"Reproduce the concern under load.")
     ]
     var toolReferences: [ToolReference] { tools.map { .init(id:$0.id, name:$0.name, symbol:$0.symbol, use:$0.hint, tip:"Use the least invasive test that can prove or eliminate a theory.") } }
-    let cases: [DiagnosticCase]
-    let aseQuestions: [ASEQuestion]
+    var cases: [DiagnosticCase] = []
+    var aseQuestions: [ASEQuestion] = []
 
     init() {
         func t(_ id:String) -> DiagnosticTool { tools.first { $0.id == id }! }
