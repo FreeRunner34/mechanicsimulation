@@ -1,4 +1,5 @@
 import XCTest
+import StoreKitTest
 @testable import MasterMechanic
 
 final class MasterMechanicTests: XCTestCase {
@@ -54,6 +55,28 @@ final class MasterMechanicTests: XCTestCase {
         XCTAssertFalse(AppConfig.privacyURL.absoluteString.contains("example.com"))
         XCTAssertFalse(AppConfig.supportURL.absoluteString.contains("example.com"))
         XCTAssertEqual(AppConfig.proProductID, "com.freerunner34.mastermechanic.pro.monthly")
+    }
+
+    func testLocalStoreKitConfigurationCanCreateProSubscriptionTransaction() throws {
+        let testSourceURL = URL(fileURLWithPath: #filePath)
+        let repositoryRoot = testSourceURL
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let configurationURL = repositoryRoot
+            .appendingPathComponent("MasterMechanic")
+            .appendingPathComponent("MasterMechanic.storekit")
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: configurationURL.path))
+
+        let session = try SKTestSession(contentsOf: configurationURL)
+        session.disableDialogs = true
+        session.clearTransactions()
+        try session.buyProduct(productIdentifier: AppConfig.proProductID)
+
+        XCTAssertTrue(
+            session.allTransactions().contains { $0.productIdentifier == AppConfig.proProductID },
+            "Local StoreKit configuration did not create the Pro subscription transaction."
+        )
     }
 
     @MainActor
