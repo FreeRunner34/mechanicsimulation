@@ -10,7 +10,13 @@ struct MasterMechanicApp: App {
             RootView()
                 .environmentObject(progress)
                 .environmentObject(purchases)
-                .task { await purchases.prepare() }
+                .task {
+                    // Hosted XCTest runs launch the app process. Skip storefront loading
+                    // there so logic tests remain deterministic and fully offline.
+                    if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil {
+                        await purchases.prepare()
+                    }
+                }
                 .preferredColorScheme(.dark)
         }
     }
