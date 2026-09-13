@@ -4,7 +4,7 @@ import UIKit
 
 private let accent = Color.orange
 private let panel = Color.white.opacity(0.07)
-private let border = Color.white.opacity(0.12)
+private let outline = Color.white.opacity(0.12)
 
 struct RootView: View {
     var body: some View {
@@ -26,7 +26,7 @@ struct DashboardView: View {
             VStack(spacing:16) {
                 HStack(alignment:.bottom) {
                     VStack(alignment:.leading,spacing:3) {
-                        Text("SERVICE DEPARTMENT").font(.caption2.black).tracking(2).foregroundStyle(accent)
+                        Text("SERVICE DEPARTMENT").font(.caption2.weight(.black)).tracking(2).foregroundStyle(accent)
                         Text("Diagnostic Bay").font(.largeTitle.bold())
                     }
                     Spacer(); Text(progress.rank.uppercased()).font(.caption2.bold()).foregroundStyle(accent)
@@ -41,7 +41,7 @@ struct DashboardView: View {
                         RadialGradient(colors:[accent.opacity(0.35),.black],center:.topTrailing,startRadius:0,endRadius:380)
                         Image(systemName:"car.rear.and.tire.marks").font(.system(size:96,weight:.thin)).foregroundStyle(.white.opacity(0.12)).frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topTrailing).padding()
                         VStack(alignment:.leading,spacing:7) {
-                            Text("OPEN BAY").font(.caption.black).tracking(2).foregroundStyle(accent)
+                            Text("OPEN BAY").font(.caption.weight(.black)).tracking(2).foregroundStyle(accent)
                             Text("Diagnose the next vehicle").font(.title2.bold()).foregroundStyle(.white)
                             Text("Read the RO. Pick tests. Prove the fault. Make the repair call.").font(.subheadline).foregroundStyle(.white.opacity(0.72))
                             Label("Start diagnostic case",systemImage:"arrow.right.circle.fill").font(.headline).foregroundStyle(.white).padding(.top,8)
@@ -110,7 +110,7 @@ struct CaseSessionView: View {
         ScrollView {
             VStack(spacing:14) {
                 VStack(alignment:.leading,spacing:7) {
-                    HStack { Text(diagnosticCase.difficulty.shortLabel).font(.caption2.black).tracking(1.5).foregroundStyle(accent); Spacer(); Label("\(revealed.count) tests",systemImage:"checklist").font(.caption).foregroundStyle(.secondary) }
+                    HStack { Text(diagnosticCase.difficulty.shortLabel).font(.caption2.weight(.black)).tracking(1.5).foregroundStyle(accent); Spacer(); Label("\(revealed.count) tests",systemImage:"checklist").font(.caption).foregroundStyle(.secondary) }
                     Text(diagnosticCase.repairOrder.vehicle).font(.title2.bold())
                     Text(diagnosticCase.repairOrder.complaint).font(.subheadline).foregroundStyle(.secondary)
                 }.card()
@@ -143,7 +143,16 @@ struct CaseSessionView: View {
             .fullScreenCover(item:$result){ value in ResultView(result:value,diagnosticCase:diagnosticCase){dismiss()} }
     }
     private func run(_ item:Inspection){ guard toolID == item.toolID else{return}; _ = revealed.insert(item.id); UIImpactFeedbackGenerator(style:.light).impactOccurred() }
-    private func submit(){ let cause=diagnosticCase.causes.first{$0.id==causeID}?.correct==true; let repair=diagnosticCase.repairs.first{$0.id==repairID}?.correct==true; let productive=diagnosticCase.inspections.filter{revealed.contains($0.id)&&$0.productive}.count; let total=max(diagnosticCase.inspections.filter { $0.productive }.count,1); let wasted=diagnosticCase.inspections.filter{revealed.contains($0.id)&&!$0.productive}.count; let score=max(0,min(100,(cause ? 45:0)+(repair ? 35:0)+Int(20*Double(productive)/Double(total))-wasted*2)); progress.record(score:score,solved:cause&&repair); result = .init(score:score,solved:cause&&repair,correctCause:cause,correctRepair:repair,tests:revealed.count,wastedTests:wasted) }
+    private func submit() {
+        let cause = diagnosticCase.causes.first { $0.id == causeID }?.correct == true
+        let repair = diagnosticCase.repairs.first { $0.id == repairID }?.correct == true
+        let productive = diagnosticCase.inspections.filter { revealed.contains($0.id) && $0.productive }.count
+        let total = max(diagnosticCase.inspections.filter { $0.productive }.count, 1)
+        let wasted = diagnosticCase.inspections.filter { revealed.contains($0.id) && $0.productive == false }.count
+        let score = max(0, min(100, (cause ? 45 : 0) + (repair ? 35 : 0) + Int(20 * Double(productive) / Double(total)) - wasted * 2))
+        progress.record(score: score, solved: cause && repair)
+        result = .init(score: score, solved: cause && repair, correctCause: cause, correctRepair: repair, tests: revealed.count, wastedTests: wasted)
+    }
     private var selectedToolName:String { diagnosticCase.tools.first{$0.id==toolID}?.name.uppercased() ?? "SELECT A TOOL" }
     private func toolName(_ id:String)->String{diagnosticCase.tools.first{$0.id==id}?.name ?? id}
     private func short(_ v:BayView)->String{switch v{case .underHood:"HOOD";case .underCar:"LIFT";case .cockpit:"CAB";case .exterior:"ROAD"}}
@@ -153,8 +162,8 @@ struct CaseResult:Identifiable{let id=UUID();let score:Int;let solved:Bool;let c
 struct ResultView: View {
     let result:CaseResult; let diagnosticCase:DiagnosticCase; let done:()->Void
     var body: some View { ZStack { Color.black.ignoresSafeArea(); ScrollView { VStack(spacing:18) {
-        ZStack { Circle().stroke(border,lineWidth:12); Circle().trim(from:0,to:Double(result.score)/100).stroke(accent,style:StrokeStyle(lineWidth:12,lineCap:.round)).rotationEffect(.degrees(-90)); Text("\(result.score)").font(.system(size:52,weight:.black,design:.rounded)) }.frame(width:170,height:170).padding(.top,22)
-        Text(result.solved ? "COMEBACK AVOIDED":"CUSTOMER CAME BACK").font(.title2.black).foregroundStyle(result.solved ? accent:.red)
+        ZStack { Circle().stroke(outline,lineWidth:12); Circle().trim(from:0,to:Double(result.score)/100).stroke(accent,style:StrokeStyle(lineWidth:12,lineCap:.round)).rotationEffect(.degrees(-90)); Text("\(result.score)").font(.system(size:52,weight:.black,design:.rounded)) }.frame(width:170,height:170).padding(.top,22)
+        Text(result.solved ? "COMEBACK AVOIDED":"CUSTOMER CAME BACK").font(.title2.weight(.black)).foregroundStyle(result.solved ? accent:.red)
         VStack(alignment:.leading,spacing:12){ResultLine(label:"Root cause",value:diagnosticCase.rootCause,pass:result.correctCause);ResultLine(label:"Repair",value:diagnosticCase.correctRepair,pass:result.correctRepair);ResultLine(label:"Tests",value:"\(result.tests) (\(result.wastedTests) non-productive)",pass:nil)}.card()
         VStack(alignment:.leading,spacing:9){SectionHeader("WHY","DIAGNOSTIC LOGIC");Text(diagnosticCase.explanation).foregroundStyle(.white.opacity(0.8));ForEach(diagnosticCase.takeaways,id:\.self){Label($0,systemImage:"checkmark.circle.fill").font(.subheadline).foregroundStyle(.secondary)}}.card()
         Button("Return to garage",action:done).buttonStyle(PrimaryButtonStyle())
@@ -163,7 +172,7 @@ struct ResultView: View {
 
 struct RepairOrderView:View{
     @Environment(\.dismiss) private var dismiss; let order:RepairOrder
-    var body:some View{NavigationStack{ScrollView{VStack(alignment:.leading,spacing:0){Text("REPAIR ORDER").font(.caption.black).tracking(3).foregroundStyle(.black.opacity(0.5));Text(order.vehicle).font(.title.bold()).foregroundStyle(.black).padding(.top,7);Text("\(order.mileage.formatted()) miles").foregroundStyle(.black.opacity(0.6));ROField(title:"CUSTOMER STATES",text:order.complaint);ROField(title:"SERVICE WRITER NOTES",text:order.notes);Text("Verify the concern, gather evidence, identify the root cause, and choose the repair that fixes it.").font(.footnote).foregroundStyle(.black.opacity(0.55)).padding(.top,20)}.padding(25).background(Color(red:0.95,green:0.92,blue:0.82)).clipShape(RoundedRectangle(cornerRadius:22)).padding()}.background(Color.black).navigationTitle("Work Order").navigationBarTitleDisplayMode(.inline).toolbar{ToolbarItem(placement:.topBarTrailing){Button("Start"){dismiss()}.fontWeight(.bold).tint(accent)}}}}
+    var body:some View{NavigationStack{ScrollView{VStack(alignment:.leading,spacing:0){Text("REPAIR ORDER").font(.caption.weight(.black)).tracking(3).foregroundStyle(.black.opacity(0.5));Text(order.vehicle).font(.title.bold()).foregroundStyle(.black).padding(.top,7);Text("\(order.mileage.formatted()) miles").foregroundStyle(.black.opacity(0.6));ROField(title:"CUSTOMER STATES",text:order.complaint);ROField(title:"SERVICE WRITER NOTES",text:order.notes);Text("Verify the concern, gather evidence, identify the root cause, and choose the repair that fixes it.").font(.footnote).foregroundStyle(.black.opacity(0.55)).padding(.top,20)}.padding(25).background(Color(red:0.95,green:0.92,blue:0.82)).clipShape(RoundedRectangle(cornerRadius:22)).padding()}.background(Color.black).navigationTitle("Work Order").navigationBarTitleDisplayMode(.inline).toolbar{ToolbarItem(placement:.topBarTrailing){Button("Start"){dismiss()}.fontWeight(.bold).tint(accent)}}}}
 }
 
 struct TrainingView:View{
@@ -237,9 +246,9 @@ struct ProView:View{
 struct PrivacyView:View{var body:some View{ScrollView{VStack(alignment:.leading,spacing:15){Text("Privacy").font(.largeTitle.bold());Text("MasterMechanic does not require an app account. Simulator progress and settings are stored locally on the device. StoreKit supplies purchase entitlement status so the app can determine whether Pro is active.");Text("This native build does not use Base44, Stripe, third-party advertising SDKs, analytics SDKs, or cross-app tracking.");Text("Before App Store submission, replace the placeholder privacy URL in AppConfig with your published policy and make the App Privacy answers match the shipping build.");Link("Open published privacy policy",destination:AppConfig.privacyURL).foregroundStyle(accent)}.foregroundStyle(.white.opacity(0.85)).padding()}.background(Color.black.ignoresSafeArea())}}
 
 struct StatTile:View{let value:String;let label:String;let symbol:String;var body:some View{VStack(spacing:5){Image(systemName:symbol).foregroundStyle(accent);Text(value).font(.headline.monospacedDigit());Text(label).font(.caption2).foregroundStyle(.secondary)}.frame(maxWidth:.infinity).padding(.vertical,13).background(panel).clipShape(RoundedRectangle(cornerRadius:15))}}
-struct SectionHeader:View{let title:String;let subtitle:String;init(_ title:String,_ subtitle:String){self.title=title;self.subtitle=subtitle};var body:some View{HStack{Text(title).font(.caption.black).tracking(1.7);Spacer();Text(subtitle).font(.caption2.bold()).foregroundStyle(.secondary)}}}
-struct ChoiceRow:View{let text:String;let selected:Bool;let action:()->Void;var body:some View{Button(action:action){HStack(spacing:11){Image(systemName:selected ? "largecircle.fill.circle":"circle").foregroundStyle(selected ? accent:Color.secondary);Text(text).foregroundStyle(.white).multilineTextAlignment(.leading);Spacer()}.padding(13).background(selected ? accent.opacity(0.09):panel).overlay(RoundedRectangle(cornerRadius:14).stroke(selected ? accent.opacity(0.65):border)).clipShape(RoundedRectangle(cornerRadius:14))}.buttonStyle(.plain)}}
+struct SectionHeader:View{let title:String;let subtitle:String;init(_ title:String,_ subtitle:String){self.title=title;self.subtitle=subtitle};var body:some View{HStack{Text(title).font(.caption.weight(.black)).tracking(1.7);Spacer();Text(subtitle).font(.caption2.bold()).foregroundStyle(.secondary)}}}
+struct ChoiceRow:View{let text:String;let selected:Bool;let action:()->Void;var body:some View{Button(action:action){HStack(spacing:11){Image(systemName:selected ? "largecircle.fill.circle":"circle").foregroundStyle(selected ? accent:Color.secondary);Text(text).foregroundStyle(.white).multilineTextAlignment(.leading);Spacer()}.padding(13).background(selected ? accent.opacity(0.09):panel).overlay(RoundedRectangle(cornerRadius:14).stroke(selected ? accent.opacity(0.65):outline)).clipShape(RoundedRectangle(cornerRadius:14))}.buttonStyle(.plain)}}
 struct ResultLine:View{let label:String;let value:String;let pass:Bool?;var body:some View{HStack(alignment:.top){VStack(alignment:.leading,spacing:2){Text(label.uppercased()).font(.caption2.bold()).foregroundStyle(.secondary);Text(value).font(.subheadline)};Spacer();if let pass{Image(systemName:pass ? "checkmark.circle.fill":"xmark.circle.fill").foregroundStyle(pass ? accent:.red)}}}}
-struct ROField:View{let title:String;let text:String;var body:some View{VStack(alignment:.leading,spacing:6){Text(title).font(.caption.black).tracking(1.3).foregroundStyle(.black.opacity(0.5));Text(text).foregroundStyle(.black)}.padding(.top,21)}}
+struct ROField:View{let title:String;let text:String;var body:some View{VStack(alignment:.leading,spacing:6){Text(title).font(.caption.weight(.black)).tracking(1.3).foregroundStyle(.black.opacity(0.5));Text(text).foregroundStyle(.black)}.padding(.top,21)}}
 struct PrimaryButtonStyle:ButtonStyle{func makeBody(configuration:Configuration)->some View{configuration.label.font(.headline).frame(maxWidth:.infinity).padding(.vertical,14).background(accent.opacity(configuration.isPressed ? 0.72:1)).foregroundStyle(.black).clipShape(RoundedRectangle(cornerRadius:15))}}
-private extension View{func card()->some View{padding(16).background(panel).clipShape(RoundedRectangle(cornerRadius:19)).overlay(RoundedRectangle(cornerRadius:19).stroke(border))}}
+private extension View{func card()->some View{padding(16).background(panel).clipShape(RoundedRectangle(cornerRadius:19)).overlay(RoundedRectangle(cornerRadius:19).stroke(outline))}}
