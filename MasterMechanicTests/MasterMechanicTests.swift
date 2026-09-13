@@ -45,9 +45,26 @@ final class MasterMechanicTests: XCTestCase {
         }
     }
 
-    func testTrainingBankHasAtLeastFiveQuestionsPerArea() {
+    func testTrainingBankHasAtLeastSixtyQuestionsPerArea() {
         for area in ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"] {
-            XCTAssertGreaterThanOrEqual(AppData.shared.trainingQuestions.filter { $0.area == area }.count, 5, area)
+            XCTAssertGreaterThanOrEqual(AppData.shared.trainingQuestions.filter { $0.area == area }.count, 60, area)
+        }
+    }
+
+    func testPracticeTestsUseTwentyUniqueQuestionFamilies() {
+        for area in ["A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8"] {
+            let questions = AppData.shared.practiceTest(area: area, questionCount: 20)
+            XCTAssertEqual(questions.count, 20, area)
+            XCTAssertEqual(Set(questions.map(\.id)).count, 20, area)
+
+            let families = questions.map { question -> String in
+                let parts = question.id.split(separator: "-")
+                if question.id.hasPrefix("bank-"), parts.count >= 3 {
+                    return parts.prefix(3).joined(separator: "-")
+                }
+                return question.id
+            }
+            XCTAssertEqual(Set(families).count, 20, "Duplicate concept family in \(area) practice test")
         }
     }
 
