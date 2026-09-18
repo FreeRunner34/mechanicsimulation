@@ -106,7 +106,7 @@ struct ToolReference: Identifiable, Hashable {
 }
 
 enum AppConfig {
-    static let proProductID = "com.freerunner34.mastermechanic.pro.monthly"
+    static let proProductID = "com.revpointstudios.mastermechanic.pro"
     static let privacyURL = URL(string: "https://github.com/FreeRunner34/mechanicsimulation/blob/main/PRIVACY.md")!
     static let supportURL = URL(string: "https://github.com/FreeRunner34/mechanicsimulation/blob/main/SUPPORT.md")!
     static let termsURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
