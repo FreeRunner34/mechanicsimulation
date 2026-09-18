@@ -40,7 +40,7 @@ A paid Apple Developer Program membership is not required for the simulator work
 
 The project includes `MasterMechanic/MasterMechanic.storekit` with a local **non-consumable Pro unlock** matching the production product ID:
 
-`com.freerunner34.mastermechanic.pro.monthly`
+`com.revpointstudios.mastermechanic.pro`
 
 The identifier retains the original suffix for compatibility, but the product itself is configured as a one-time non-consumable purchase. It does not renew and does not create a recurring charge.
 
@@ -72,7 +72,7 @@ The repository contains an XCTest target and automated project preflight checks.
 The remaining distribution phase is primarily developer/account owned:
 
 1. Enroll/select the Apple Developer Team and configure signing/capabilities.
-2. Create the App Store Connect app record and the non-consumable product `com.freerunner34.mastermechanic.pro.monthly`.
+2. Create the App Store Connect app record and the non-consumable product `com.revpointstudios.mastermechanic.pro`.
 3. Validate the real product using Apple's Sandbox/TestFlight environment.
 4. Complete App Privacy and age-rating questionnaires.
 5. Add App Store screenshots, description, keywords, support/privacy metadata, pricing/availability, and other listing information.
