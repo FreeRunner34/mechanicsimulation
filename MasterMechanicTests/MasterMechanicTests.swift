@@ -99,7 +99,7 @@ final class MasterMechanicTests: XCTestCase {
     func testProductionURLsAreNotPlaceholders() {
         XCTAssertFalse(AppConfig.privacyURL.absoluteString.contains("example.com"))
         XCTAssertFalse(AppConfig.supportURL.absoluteString.contains("example.com"))
-        XCTAssertEqual(AppConfig.proProductID, "com.freerunner34.mastermechanic.pro.monthly")
+        XCTAssertEqual(AppConfig.proProductID, "com.revpointstudios.mastermechanic.pro")
     }
 
     func testLocalStoreKitConfigurationIsOneTimeNonConsumable() throws {
