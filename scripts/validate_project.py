@@ -37,7 +37,7 @@ products = list(config.get("products", []))
 for group in config.get("subscriptionGroups", []):
     products.extend(group.get("subscriptions", []))
 product_ids = {item.get("productID") for item in products}
-expected_product = "com.freerunner34.mastermechanic.pro.monthly"
+expected_product = "com.revpointstudios.mastermechanic.pro"
 assert expected_product in product_ids, "Local StoreKit product ID does not match app code"
 unlock = next(item for item in products if item.get("productID") == expected_product)
 assert unlock.get("type") == "NonConsumable", "Pro must be configured as a non-consumable one-time purchase"
